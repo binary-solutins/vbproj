@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import React, {useEffect, useState} from 'react';
+import {NavigationContainer} from '@react-navigation/native';
+import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Import screens
@@ -26,7 +26,7 @@ const Stack = createNativeStackNavigator();
 export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [userToken, setUserToken] = useState(null);
-  
+
   // Check for token when app starts
   useEffect(() => {
     const checkToken = async () => {
@@ -40,21 +40,20 @@ export default function App() {
         setIsLoading(false);
       }
     };
-    
+
     checkToken();
   }, []);
-  
+
   // Show splash screen while checking token
   if (isLoading) {
     return <SplashScreen />;
   }
-  
+
   return (
     <NavigationContainer>
-      <Stack.Navigator 
-        initialRouteName={userToken ? "Home" : "Login"} 
-        screenOptions={{ headerShown: false }}
-      >
+      <Stack.Navigator
+        initialRouteName={userToken ? 'Home' : 'Login'}
+        screenOptions={{headerShown: false}}>
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="signup" component={SignupScreen} />
         <Stack.Screen name="Home" component={HomeScreen} />
@@ -64,10 +63,17 @@ export default function App() {
         <Stack.Screen name="PatientList" component={PatientList} />
         <Stack.Screen name="AddPatient" component={AddPatient} />
         <Stack.Screen name="PatientDetails" component={EditPatient} />
-        <Stack.Screen name="BreastScreeningScreen" component={BreastScreeningScreen} />
+        <Stack.Screen
+          name="BreastScreeningScreen"
+          component={BreastScreeningScreen}
+        />
         <Stack.Screen name="OTP" component={VerifyOTPScreen} />
         <Stack.Screen name="EditHospital" component={EditHospital} />
-        <Stack.Screen name="PDFViewer" component={PDFViewer} options={{headerShown: false}} />
+        <Stack.Screen
+          name="PDFViewer"
+          component={PDFViewer}
+          options={{headerShown: false}}
+        />
         <Stack.Screen name="PatientReports" component={PatientReports} />
         <Stack.Screen name="Analytics" component={Analytics} />
       </Stack.Navigator>
