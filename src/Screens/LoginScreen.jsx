@@ -31,18 +31,18 @@ export default function LoginScreen() {
   const [error, setError] = useState('');
   const [inputFocused, setInputFocused] = useState(null);
   const navigation = useNavigation();
-  
+
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideUpAnim = useRef(new Animated.Value(50)).current;
   const backgroundAnim = useRef(new Animated.Value(0)).current;
   const logoAnim = useRef(new Animated.Value(0)).current;
   const errorShakeAnim = useRef(new Animated.Value(0)).current;
-  
+
   // References
   const memberIdInputRef = useRef(null);
   const passwordInputRef = useRef(null);
-  
+
   useEffect(() => {
     // Start animations when component mounts
     Animated.parallel([
@@ -68,7 +68,7 @@ export default function LoginScreen() {
       })
     ]).start();
   }, []);
-  
+
   const validateMemberId = (id) => {
     return id.trim().length > 0;
   };
@@ -86,24 +86,24 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     Keyboard.dismiss();
-    
+
     if (!memberId || !password) {
       setError('Please enter both member ID and password');
       shakeAnimation();
       return;
     }
-    
+
     setLoading(true);
     setError('');
-    
+
     try {
       const response = await authAPI.login(memberId, password);
       // Handle successful login
       console.log('Login successful', response.data);
-      navigation.navigate('Home'); 
+      navigation.navigate('Home');
     } catch (error) {
       console.error('Login error:', error);
-      
+
       if (error.response) {
         if (error.response.status === 401) {
           setError('Invalid credentials. Please check your ID and password.');
@@ -113,7 +113,7 @@ export default function LoginScreen() {
       } else {
         setError('Network error. Please check your connection and try again.');
       }
-      
+
       shakeAnimation();
     } finally {
       setLoading(false);
@@ -136,7 +136,7 @@ export default function LoginScreen() {
     checkToken();
   }, []);
 
-  
+
   const focusPasswordInput = () => {
     passwordInputRef.current?.focus();
   };
@@ -145,27 +145,27 @@ export default function LoginScreen() {
     inputRange: [0, 1],
     outputRange: ['#ffe6f0', '#fff0f5']
   });
-  
+
   const getInputStyle = (fieldName) => {
     return [
       styles.inputContainer,
       inputFocused === fieldName && styles.inputFocused,
-      (fieldName === 'memberId' && memberId) || (fieldName === 'password' && password) 
-        ? styles.inputWithText 
+      (fieldName === 'memberId' && memberId) || (fieldName === 'password' && password)
+        ? styles.inputWithText
         : null
     ];
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <Animated.View 
+      <Animated.View
         style={[
-          styles.container, 
+          styles.container,
           { backgroundColor: backgroundInterpolate }
         ]}
       >
         <StatusBar barStyle="dark-content" backgroundColor="#fff0f5" />
-        
+
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.keyboardAvoid}
@@ -181,15 +181,16 @@ export default function LoginScreen() {
                 <View style={[styles.decorItem, styles.decorTriangle]} />
                 <View style={[styles.decorItem, styles.decorPlus]} />
               </View>
-              
+
               {/* Medical Logo Image */}
-              <Animated.View 
+              <Animated.View
                 style={[
                   styles.logoContainer,
                   {
                     opacity: logoAnim,
                     transform: [
-                      { translateY: logoAnim.interpolate({
+                      {
+                        translateY: logoAnim.interpolate({
                           inputRange: [0, 1],
                           outputRange: [20, 0]
                         })
@@ -198,16 +199,16 @@ export default function LoginScreen() {
                   }
                 ]}
               >
-               
+
                 <Image
-  source={require('../assets/biglogo.jpg')}
-  style={styles.logo}
-/>
+                  source={require('../assets/biglogo.jpg')}
+                  style={styles.logo}
+                />
 
               </Animated.View>
-              
+
               {/* Card container */}
-              <Animated.View 
+              <Animated.View
                 style={[
                   styles.cardContainer,
                   {
@@ -219,10 +220,10 @@ export default function LoginScreen() {
                 <View style={styles.headerSection}>
                   <Text style={styles.loginHeader}>Login</Text>
                 </View>
-                
+
                 {/* Error Message Display - FIXED */}
                 {error ? (
-                  <Animated.View 
+                  <Animated.View
                     style={[
                       styles.errorContainer,
                       { transform: [{ translateX: errorShakeAnim }] }
@@ -232,9 +233,9 @@ export default function LoginScreen() {
                     <Text style={styles.errorText}>{error}</Text>
                   </Animated.View>
                 ) : null}
-                
+
                 <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Member ID</Text>
+                  <Text style={styles.inputLabel}>Hospital Email</Text>
                   <View style={getInputStyle('memberId')}>
                     <TextInput
                       ref={memberIdInputRef}
@@ -259,7 +260,7 @@ export default function LoginScreen() {
                     ) : null}
                   </View>
                 </View>
-                
+
                 <View style={styles.inputGroup}>
                   <View style={styles.passwordHeader}>
                     <Text style={styles.inputLabel}>Password</Text>
@@ -297,7 +298,7 @@ export default function LoginScreen() {
                     </TouchableOpacity>
                   </View>
                 </View>
-                
+
                 <TouchableOpacity
                   style={[styles.loginButton, loading && styles.buttonDisabled]}
                   onPress={handleLogin}
@@ -310,7 +311,7 @@ export default function LoginScreen() {
                     <Text style={styles.buttonText}>Log in</Text>
                   )}
                 </TouchableOpacity>
-                
+
                 <View style={styles.footer}>
                   <Text style={styles.footerText}>Don't have an account? </Text>
                   <TouchableOpacity
@@ -320,17 +321,20 @@ export default function LoginScreen() {
                     <Text style={styles.createAccountText}>Create an account</Text>
                   </TouchableOpacity>
                 </View>
-                
+
               </Animated.View>
-              <Image
-  source={{
-    uri: 'https://static.wixstatic.com/media/048d7e_644b43b18e8347d6b2b4c65943725115~mv2.png/v1/fill/w_554,h_166,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/D3S%20Healthcare%20Logo.png',
-  }}
-  style={styles.logo}
-/>
+              <View style={{ alignItems: 'center', display:'flex' }}>
+                <Text style={{ color: '#888', fontSize: 12, marginTop:15 }}>Powered by</Text>
+                <Image
+                  source={{
+                    uri: 'https://static.wixstatic.com/media/048d7e_644b43b18e8347d6b2b4c65943725115~mv2.png/v1/fill/w_554,h_166,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/D3S%20Healthcare%20Logo.png',
+                  }}
+                  style={styles.logo2}
+                />
+              </View>
             </View>
 
-           
+
           </TouchableWithoutFeedback>
         </KeyboardAvoidingView>
       </Animated.View>
@@ -361,16 +365,24 @@ const styles = StyleSheet.create({
     marginBottom: 30,
     zIndex: 10,
   },
- 
+
   logo: {
     width: 200,
     height: 100,
     marginBottom: 8,
     objectFit: 'contain',
-    borderRadius: 50,
-  
+    borderRadius: 20,
+    backgroundColor:'white'
+
   },
- 
+  logo2: {
+    width: 250,
+    height: 60,
+    objectFit: 'contain',
+    borderRadius: 50,
+
+  },
+
   heartBeatLine: {
     position: 'absolute',
     flexDirection: 'row',
@@ -404,7 +416,7 @@ const styles = StyleSheet.create({
     borderRightWidth: 1,
     borderRightColor: 'transparent',
   },
- 
+
   decorContainer: {
     position: 'absolute',
     top: 0,

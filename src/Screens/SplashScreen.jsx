@@ -529,7 +529,7 @@ const styles = StyleSheet.create({
   },
   tagline: {
     fontSize: 16,
-    fontWeight: '500',
+    fontFamily: 'Poppins-Medium',
     color: COLORS.primary,
     marginTop: 5,
   },
@@ -540,13 +540,14 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontFamily: 'Poppins-Medium',
     textAlign: 'center',
     marginBottom: 12,
     color: COLORS.text,
   },
   subtitle: {
     fontSize: 14,
+    fontFamily: 'Poppins-Regular',
     textAlign: 'center',
     color: COLORS.lightText,
     lineHeight: 20,

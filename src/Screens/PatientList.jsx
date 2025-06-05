@@ -121,11 +121,12 @@ export default function PatientsList() {
         return;
       }
 
+      // Call API whenever screen is focused
       const response = await authAPI.get(`/patients/hospital/${userData.id}`);
       const patientData = response?.data || [];
 
       // Initialize animation values for each patient
-      patientData.forEach((patient, index) => {
+      patientData?.forEach((patient, index) => {
         listItemAnim[patient.id] = new Animated.Value(0);
 
         // Staggered animation for list items
@@ -142,11 +143,22 @@ export default function PatientsList() {
       setFilteredPatients(patientData);
     } catch (error) {
       console.error('Error loading patients:', error);
-      Alert.alert('Error', 'Failed to load patients');
+      Alert.alert('Error', error.response.data.message);
     } finally {
       setLoading(false);
     }
   };
+
+  // Call loadPatients whenever screen is focused
+  useEffect(() => {
+    const focusListener = navigation.addListener('focus', () => {
+      loadPatients();
+    });
+
+    return () => {
+      focusListener();
+    };
+  }, [navigation]);
 
   const handleRefresh = async () => {
     setRefreshing(true);

@@ -172,7 +172,7 @@ const BreastScreeningScreen = () => {
 
       // Adjust these endpoints to match your actual API routes
       const doctorsResponse = await authAPI.get(`/doctors/hospital/${userData.id}`);
-      setDoctors(doctorsResponse?.data || []);
+      setDoctors(doctorsResponse?.data?.doctors || []);
 
       const patientsResponse = await authAPI.get(`/patients/hospital/${userData.id}`);
       setPatients(patientsResponse?.data || []);
@@ -234,15 +234,7 @@ const BreastScreeningScreen = () => {
           onConnect={connectToBluetoothDevice}
         />
 
-        <InformationSection />
-
-        {Object.keys(capturedImages).length > 0 && (
-          <ProgressSection 
-            capturedImages={capturedImages} 
-          />
-        )}
-
-        <ActionButtons
+<ActionButtons
           canStart={selectedDoctor && selectedPatient && !reportGenerated}
           isGenerating={generatingReport}
           hasReport={reportUrl !== null}
@@ -252,6 +244,16 @@ const BreastScreeningScreen = () => {
           capturedImagesCount={Object.keys(capturedImages).length}
           reportGenerated={reportGenerated}
         />
+
+        <InformationSection />
+
+        {Object.keys(capturedImages).length > 0 && (
+          <ProgressSection 
+            capturedImages={capturedImages} 
+          />
+        )}
+
+      
       </ScrollView>
 
       {cameraVisible && (
