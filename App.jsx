@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import React, {useEffect, useState} from 'react';
+import {NavigationContainer} from '@react-navigation/native';
+import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Import screens
@@ -41,9 +41,12 @@ export default function App() {
         setIsLoading(false); // Fallback in case of error
       }
     };
+    checkToken();
+  }, []);
 
     loadApp();
   }, []);
+
 
   if (isLoading) {
     return <SplashScreen />;
@@ -64,10 +67,19 @@ export default function App() {
         <Stack.Screen name="PatientList" component={PatientList} />
         <Stack.Screen name="AddPatient" component={AddPatient} />
         <Stack.Screen name="PatientDetails" component={EditPatient} />
-        <Stack.Screen name="BreastScreeningScreen" component={BreastScreeningScreen} />
+        <Stack.Screen
+          name="BreastScreeningScreen"
+          component={BreastScreeningScreen}
+        />
         <Stack.Screen name="OTP" component={VerifyOTPScreen} />
         <Stack.Screen name="EditHospital" component={EditHospital} />
-        <Stack.Screen name="PDFViewer" component={PDFViewer} options={{ headerShown: false }} />
+
+        <Stack.Screen
+          name="PDFViewer"
+          component={PDFViewer}
+          options={{headerShown: false}}
+        />
+
         <Stack.Screen name="PatientReports" component={PatientReports} />
         <Stack.Screen name="Analytics" component={Analytics} />
       </Stack.Navigator>
