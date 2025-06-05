@@ -11,17 +11,15 @@ import {
   KeyboardAvoidingView,
   Platform,
   Animated,
-  Dimensions,
   StatusBar,
-  Easing,
-  Keyboard,
   SafeAreaView,
+  Dimensions,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import Feather from 'react-native-vector-icons/Feather';
 import { authAPI } from '../api/axios';
 
-const { width, height } = Dimensions.get('window');
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 export default function EditPatient() {
   const navigation = useNavigation();
@@ -30,18 +28,7 @@ export default function EditPatient() {
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [activeSection, setActiveSection] = useState(0);
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
-  const [inputFocused, setInputFocused] = useState(null);
-  const scrollViewRef = useRef(null);
-  
-  // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideUpAnim = useRef(new Animated.Value(50)).current;
-  const backgroundAnim = useRef(new Animated.Value(0)).current;
-  const formAnimation = useRef(new Animated.Value(0)).current;
-  const saveButtonScale = useRef(new Animated.Value(1)).current;
-  const inputRefs = useRef({});
   
   const [formData, setFormData] = useState({
     firstName: '',
@@ -50,45 +37,15 @@ export default function EditPatient() {
     weight: '',
     height: '',
     contact: '',
-    gender: '',
+    gender: 'Female', // Default to Female to match AddPatient
     address: '',
     adharNumber: '',
     email: '',
   });
 
-  const [errors, setErrors] = useState({
-    firstName: '',
-    lastName: '',
-    age: '',
-    contact: '',
-    gender: '',
-  });
+  const [errors, setErrors] = useState({});
+  const [focusedField, setFocusedField] = useState(null);
 
-  // Form sections configuration
-  const formSections = [
-    {
-      title: 'Personal Information',
-      icon: <Feather name="user" size={20} color="#ff4a93" />,
-      fields: ['firstName', 'lastName', 'age', 'gender'],
-    },
-    {
-      title: 'Physical Attributes',
-      icon: <Feather name="heart" size={20} color="#ff4a93" />,
-      fields: ['weight', 'height'],
-    },
-    {
-      title: 'Contact Information',
-      icon: <Feather name="phone" size={20} color="#ff4a93" />,
-      fields: ['contact', 'email', 'address'],
-    },
-    {
-      title: 'Identification',
-      icon: <Feather name="credit-card" size={20} color="#ff4a93" />,
-      fields: ['adharNumber'],
-    },
-  ];
-
-  // Load patient data
   useEffect(() => {
     if (patientId) {
       loadPatientData();
@@ -97,59 +54,31 @@ export default function EditPatient() {
     }
   }, [patientId]);
 
-  // Start animations when component mounts
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideUpAnim, {
-        toValue: 0,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-      Animated.timing(backgroundAnim, {
-        toValue: 1,
-        duration: 1000,
-        useNativeDriver: false,
-      }),
-    ]).start();
-  }, []);
-
-  const backgroundInterpolate = backgroundAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['#ffe6f0', '#fff0f5']
-  });
-
-  // Keyboard listeners
-  useEffect(() => {
-    const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', () => {
-      setKeyboardVisible(true);
-    });
-    const keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', () => {
-      setKeyboardVisible(false);
-    });
-
-    return () => {
-      keyboardDidShowListener.remove();
-      keyboardDidHideListener.remove();
-    };
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
   }, []);
 
   const loadPatientData = async () => {
     try {
       setLoading(true);
       const response = await authAPI.get(`/patients/${patientId}`);
-      console.log('Patient data:', response.data);
       const patient = response.data;
       
       setFormData({
-        ...patient,
+        firstName: patient?.firstName || '',
+        lastName: patient?.lastName || '',
         age: patient?.age?.toString() || '',
         weight: patient?.weight?.toString() || '',
         height: patient?.height?.toString() || '',
+        contact: patient?.contact || '',
+        gender: patient?.gender || 'Female',
+        address: patient?.address || '',
+        adharNumber: patient?.adharNumber || '',
+        email: patient?.email || '',
       });
     } catch (error) {
       console.error('Error loading patient data:', error);
@@ -161,89 +90,116 @@ export default function EditPatient() {
     }
   };
 
-  // Validate the form
+  // Validation functions
+  const validateEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const validatePhone = (phone) => {
+    const phoneRegex = /^[6-9]\d{9}$/;
+    return phoneRegex.test(phone);
+  };
+
+  const validateAadhar = (aadhar) => {
+    const aadharRegex = /^\d{12}$/;
+    return aadharRegex.test(aadhar.replace(/\s/g, ''));
+  };
+
+  const validateAge = (age) => {
+    const ageNum = parseInt(age);
+    return !isNaN(ageNum) && ageNum > 0 && ageNum <= 120;
+  };
+
+  const validateWeight = (weight) => {
+    if (!weight) return true;
+    const weightNum = parseFloat(weight);
+    return !isNaN(weightNum) && weightNum > 0 && weightNum <= 500;
+  };
+
+  const validateHeight = (height) => {
+    if (!height) return true;
+    const heightNum = parseFloat(height);
+    return !isNaN(heightNum) && heightNum > 0 && heightNum <= 300;
+  };
+
   const validateForm = () => {
     const newErrors = {};
-    let isValid = true;
 
     if (!formData.firstName.trim()) {
       newErrors.firstName = 'First name is required';
-      isValid = false;
+    } else if (formData.firstName.trim().length < 2) {
+      newErrors.firstName = 'First name must be at least 2 characters';
     }
 
     if (!formData.lastName.trim()) {
       newErrors.lastName = 'Last name is required';
-      isValid = false;
+    } else if (formData.lastName.trim().length < 2) {
+      newErrors.lastName = 'Last name must be at least 2 characters';
     }
 
-    if (!formData.age || isNaN(formData.age)) {
-      newErrors.age = 'Valid age is required';
-      isValid = false;
-    } else if (parseInt(formData.age) <= 0 || parseInt(formData.age) > 120) {
-      newErrors.age = 'Age must be between 1 and 120';
-      isValid = false;
+    if (!formData.age) {
+      newErrors.age = 'Age is required';
+    } else if (!validateAge(formData.age)) {
+      newErrors.age = 'Please enter a valid age (1-120)';
     }
 
     if (!formData.contact.trim()) {
       newErrors.contact = 'Contact number is required';
-      isValid = false;
-    } else if (!/^\d{10}$/.test(formData.contact.trim())) {
-      newErrors.contact = 'Enter a valid 10-digit number';
-      isValid = false;
+    } else if (!validatePhone(formData.contact.trim())) {
+      newErrors.contact = 'Please enter a valid 10-digit mobile number';
     }
 
-    if (!formData.gender.trim()) {
-      newErrors.gender = 'Gender is required';
-      isValid = false;
+    if (formData.email && !validateEmail(formData.email)) {
+      newErrors.email = 'Please enter a valid email address';
+    }
+
+    if (formData.adharNumber && !validateAadhar(formData.adharNumber)) {
+      newErrors.adharNumber = 'Aadhar number must be 12 digits';
+    }
+
+    if (formData.weight && !validateWeight(formData.weight)) {
+      newErrors.weight = 'Please enter a valid weight';
+    }
+
+    if (formData.height && !validateHeight(formData.height)) {
+      newErrors.height = 'Please enter a valid height';
     }
 
     setErrors(newErrors);
-    return isValid;
+    return Object.keys(newErrors).length === 0;
   };
 
-  // Handle form submission
+  const handleInputChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: '' }));
+    }
+  };
+
   const handleSubmit = async () => {
     if (!validateForm()) {
-      // Find the first section with errors and navigate to it
-      for (let i = 0; i < formSections.length; i++) {
-        const section = formSections[i];
-        const hasError = section.fields.some(field => errors[field]);
-        if (hasError) {
-          navigateToSection(i);
-          return;
-        }
-      }
+      Alert.alert('Validation Error', 'Please correct the highlighted errors and try again.');
       return;
     }
 
-    Animated.sequence([
-      Animated.timing(saveButtonScale, {
-        toValue: 0.9,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-      Animated.timing(saveButtonScale, {
-        toValue: 1,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
     try {
       setSaving(true);
-      const updateData = {
+      
+      const submitData = {
         ...formData,
         age: parseInt(formData.age),
         weight: formData.weight ? parseFloat(formData.weight) : null,
         height: formData.height ? parseFloat(formData.height) : null,
+        adharNumber: formData.adharNumber.replace(/\s/g, ''),
       };
 
-      await authAPI.put(`/patients/${patientId}`, updateData);
+      await authAPI.put(`/patients/${patientId}`, submitData);
       
-      // Show success animation
       Alert.alert(
         'Success',
-        'Patient updated successfully',
+        'Patient updated successfully!',
         [{ text: 'OK', onPress: () => navigation.goBack() }]
       );
     } catch (error) {
@@ -254,211 +210,69 @@ export default function EditPatient() {
     }
   };
 
-  // Navigation between form sections
-  const navigateToSection = (index) => {
-    if (index >= 0 && index < formSections.length) {
-      setActiveSection(index);
-      Animated.timing(formAnimation, {
-        toValue: index,
-        duration: 300,
-        useNativeDriver: true,
-        easing: Easing.out(Easing.cubic),
-      }).start();
-      
-      // Scroll to the section
-      scrollViewRef.current?.scrollTo({
-        y: index * 150, 
-        animated: true,
-      });
-    }
+  const formatAadhar = (text) => {
+    const cleaned = text.replace(/\D/g, '');
+    const formatted = cleaned.replace(/(\d{4})(?=\d)/g, '$1 ');
+    return formatted.substring(0, 14);
   };
 
-  // Handle next section
-  const handleNextSection = () => {
-    if (activeSection < formSections.length - 1) {
-      navigateToSection(activeSection + 1);
-    } else {
-      handleSubmit();
-    }
-  };
-
-  // Handle previous section
-  const handlePrevSection = () => {
-    if (activeSection > 0) {
-      navigateToSection(activeSection - 1);
-    }
-  };
-
-  // Handle input change with validation
-  const handleInputChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    
-    // Clear error when user starts typing
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
-    }
-  };
-
-  const getInputStyle = (fieldName) => {
-    return [
-      styles.inputContainer,
-      inputFocused === fieldName && styles.inputFocused,
-      errors[fieldName] && styles.inputError
-    ];
-  };
-
-  // Toggle gender selection
-  const handleGenderSelect = (gender) => {
-    setFormData(prev => ({ ...prev, gender }));
-    if (errors.gender) {
-      setErrors(prev => ({ ...prev, gender: '' }));
-    }
-  };
-
-  // Custom input component with animation
-  const renderInput = (label, field, placeholder, required = false, keyboardType = 'default', multiline = false) => {
-    const inputError = errors[field];
-    
-    if (field === 'gender') {
-      return (
-        <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>
-            {label} {required && <Text style={styles.required}>*</Text>}
-          </Text>
-          <View style={styles.genderContainer}>
-            {['Male', 'Female', 'Other'].map((gender) => (
-              <TouchableOpacity
-                key={gender}
-                style={[
-                  styles.genderOption,
-                  formData.gender === gender && styles.genderOptionSelected,
-                ]}
-                onPress={() => handleGenderSelect(gender)}
-              >
-                <Text
-                  style={[
-                    styles.genderText,
-                    formData.gender === gender && styles.genderTextSelected,
-                  ]}
-                >
-                  {gender}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          {inputError && (
-            <Text style={styles.errorText}>{inputError}</Text>
-          )}
-        </View>
-      );
-    }
+  const renderInputField = ({
+    label,
+    field,
+    placeholder,
+    required = false,
+    keyboardType = 'default',
+    multiline = false,
+    icon,
+    formatter = null,
+    maxLength = null,
+  }) => {
+    const hasError = !!errors[field];
+    const isFocused = focusedField === field;
     
     return (
       <View style={styles.inputGroup}>
         <Text style={styles.inputLabel}>
           {label} {required && <Text style={styles.required}>*</Text>}
         </Text>
-        <View style={getInputStyle(field)}>
+        <View style={[
+          styles.inputContainer,
+          isFocused && styles.inputFocused,
+          hasError && styles.inputError,
+          multiline && styles.textAreaContainer,
+        ]}>
+          <View style={styles.iconContainer}>
+            <Feather 
+              name={icon} 
+              size={18} 
+              color={hasError ? '#dc3545' : isFocused ? '#ff4a93' : '#6c757d'} 
+            />
+          </View>
           <TextInput
-            ref={ref => inputRefs.current[field] = ref}
-            style={[
-              styles.input,
-              multiline && styles.textArea,
-            ]}
+            style={[styles.input, multiline && styles.textArea]}
             value={formData[field]}
-            onChangeText={(text) => handleInputChange(field, text)}
+            onChangeText={(text) => {
+              const formattedText = formatter ? formatter(text) : text;
+              handleInputChange(field, formattedText);
+            }}
             placeholder={placeholder}
-            placeholderTextColor="#b99aa8"
+            placeholderTextColor="#adb5bd"
             keyboardType={keyboardType}
             multiline={multiline}
-            numberOfLines={multiline ? 3 : 1}
-            onFocus={() => setInputFocused(field)}
-            onBlur={() => setInputFocused(null)}
-            returnKeyType={multiline ? "default" : "next"}
-            blurOnSubmit={multiline}
-            onSubmitEditing={() => {
-              // Find next input to focus
-              const fields = formSections.flatMap(section => section.fields);
-              const currentIndex = fields.findIndex(f => f === field);
-              if (currentIndex < fields.length - 1) {
-                const nextField = fields[currentIndex + 1];
-                if (nextField !== 'gender') {
-                  inputRefs.current[nextField]?.focus();
-                }
-              }
-            }}
+            numberOfLines={multiline ? 4 : 1}
+            textAlignVertical={multiline ? "top" : "center"}
+            onFocus={() => setFocusedField(field)}
+            onBlur={() => setFocusedField(null)}
+            maxLength={maxLength}
           />
         </View>
-        {inputError && (
-          <Text style={styles.errorText}>{inputError}</Text>
+        {hasError && (
+          <View style={styles.errorContainer}>
+            <Feather name="alert-circle" size={14} color="#dc3545" />
+            <Text style={styles.errorText}>{errors[field]}</Text>
+          </View>
         )}
       </View>
-    );
-  };
-
-  // Render current form section
-  const renderFormSection = (section, index) => {
-    const isActive = index === activeSection;
-    
-    return (
-      <Animated.View 
-        style={[
-          styles.formSection,
-          {
-            opacity: formAnimation.interpolate({
-              inputRange: [index - 1, index, index + 1],
-              outputRange: [0.7, 1, 0.7],
-              extrapolate: 'clamp',
-            }),
-            transform: [
-              {
-                scale: formAnimation.interpolate({
-                  inputRange: [index - 1, index, index + 1],
-                  outputRange: [0.95, 1, 0.95],
-                  extrapolate: 'clamp',
-                }),
-              },
-            ],
-          },
-        ]}
-        key={section.title}
-      >
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionTitleContainer}>
-            {section.icon}
-            <Text style={styles.sectionTitle}>{section.title}</Text>
-          </View>
-          <View style={styles.sectionProgress}>
-            <Text style={styles.progressText}>{index + 1}/{formSections.length}</Text>
-          </View>
-        </View>
-
-        <View style={styles.formFields}>
-          {section.fields.map(field => {
-            const fieldConfig = {
-              firstName: { label: 'First Name', placeholder: 'Enter first name', required: true },
-              lastName: { label: 'Last Name', placeholder: 'Enter last name', required: true },
-              age: { label: 'Age', placeholder: 'Enter age', required: true, keyboardType: 'numeric' },
-              gender: { label: 'Gender', placeholder: 'Select gender', required: true },
-              weight: { label: 'Weight (kg)', placeholder: 'Enter weight', keyboardType: 'numeric' },
-              height: { label: 'Height (cm)', placeholder: 'Enter height', keyboardType: 'numeric' },
-              contact: { label: 'Contact Number', placeholder: 'Enter 10-digit number', required: true, keyboardType: 'phone-pad' },
-              email: { label: 'Email', placeholder: 'Enter email address', keyboardType: 'email-address' },
-              address: { label: 'Address', placeholder: 'Enter full address', multiline: true },
-              adharNumber: { label: 'Aadhar Number', placeholder: 'Enter Aadhar number' },
-            }[field];
-            
-            return renderInput(
-              fieldConfig.label,
-              field,
-              fieldConfig.placeholder,
-              fieldConfig.required,
-              fieldConfig.keyboardType,
-              fieldConfig.multiline
-            );
-          })}
-        </View>
-      </Animated.View>
     );
   };
 
@@ -472,433 +286,387 @@ export default function EditPatient() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <Animated.View 
-        style={[
-          styles.container, 
-          { backgroundColor: backgroundInterpolate }
-        ]}
-      >
-        <StatusBar barStyle="light-content" backgroundColor="#ff4a93" />
-        
-        {/* Header */}
+    <View style={styles.container}>
+      <StatusBar 
+        barStyle="light-content" 
+        backgroundColor="#007bff" 
+        translucent={false}
+      />
+      
+      {/* Professional Header with Safe Area */}
+      <SafeAreaView style={styles.headerSafeArea}>
         <View style={styles.header}>
           <TouchableOpacity
-            style={styles.backButton}
+            style={styles.headerButton}
             onPress={() => navigation.goBack()}
             disabled={saving}
+            activeOpacity={0.7}
           >
-            <Feather name="chevron-left" size={26} color="#fff" />
+            <Feather name="arrow-left" size={22} color="#fff" />
           </TouchableOpacity>
           
-          <Text style={styles.headerTitle}>Edit Patient</Text>
+          <View style={styles.headerTitleContainer}>
+            <Text style={styles.headerTitle}>Edit Patient</Text>
+          </View>
           
-          <Animated.View 
-            style={[
-              { transform: [{ scale: saveButtonScale }] }
-            ]}
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={handleSubmit}
+            disabled={saving}
+            activeOpacity={0.7}
           >
+            {saving ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Feather name="check" size={22} color="#fff" />
+            )}
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardAvoidingContainer}
+      >
+        <ScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <Animated.View 
+            style={[styles.formCard, { opacity: fadeAnim }]}
+          >
+            {/* Personal Information */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Personal Information</Text>
+              
+              {renderInputField({
+                label: 'First Name',
+                field: 'firstName',
+                placeholder: 'Enter first name',
+                required: true,
+                icon: 'user',
+              })}
+
+              {renderInputField({
+                label: 'Last Name',
+                field: 'lastName',
+                placeholder: 'Enter last name',
+                required: true,
+                icon: 'user',
+              })}
+
+              {renderInputField({
+                label: 'Age',
+                field: 'age',
+                placeholder: 'Enter age',
+                required: true,
+                keyboardType: 'numeric',
+                icon: 'calendar',
+                maxLength: 3,
+              })}
+
+              {/* Gender - Fixed to Female */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>
+                  Gender <Text style={styles.required}>*</Text>
+                </Text>
+                <View style={styles.genderContainer}>
+                  <View style={styles.genderDisplay}>
+                    <Feather name="user" size={18} color="#FF4A93" />
+                    <Text style={styles.genderText}>Female</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            {/* Physical Information */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Physical Information</Text>
+              
+              {renderInputField({
+                label: 'Weight (kg)',
+                field: 'weight',
+                placeholder: 'Enter weight (optional)',
+                keyboardType: 'numeric',
+                icon: 'trending-up',
+              })}
+
+              {renderInputField({
+                label: 'Height (cm)',
+                field: 'height',
+                placeholder: 'Enter height (optional)',
+                keyboardType: 'numeric',
+                icon: 'bar-chart-2',
+              })}
+            </View>
+
+            {/* Contact Information */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Contact Information</Text>
+              
+              {renderInputField({
+                label: 'Mobile Number',
+                field: 'contact',
+                placeholder: 'Enter 10-digit mobile number',
+                required: true,
+                keyboardType: 'phone-pad',
+                icon: 'phone',
+                maxLength: 10,
+              })}
+
+              {renderInputField({
+                label: 'Email Address',
+                field: 'email',
+                placeholder: 'Enter email address (optional)',
+                keyboardType: 'email-address',
+                icon: 'mail',
+              })}
+
+              {renderInputField({
+                label: 'Address',
+                field: 'address',
+                placeholder: 'Enter complete address (optional)',
+                multiline: true,
+                icon: 'map-pin',
+              })}
+            </View>
+
+            {/* Identification */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Identification</Text>
+              
+              {renderInputField({
+                label: 'Aadhar Number',
+                field: 'adharNumber',
+                placeholder: 'Enter 12-digit Aadhar number (optional)',
+                keyboardType: 'numeric',
+                icon: 'credit-card',
+                formatter: formatAadhar,
+                maxLength: 14,
+              })}
+            </View>
+
+            {/* Submit Button */}
             <TouchableOpacity
-              style={styles.saveButton}
+              style={[styles.submitButton, saving && styles.submitButtonDisabled]}
               onPress={handleSubmit}
               disabled={saving}
+              activeOpacity={0.7}
             >
-              {saving ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={styles.saveButtonText}>Save</Text>
-              )}
+              <View style={styles.submitButtonContent}>
+                {saving ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Feather name="edit" size={18} color="#fff" />
+                    <Text style={styles.submitButtonText}>Update Patient</Text>
+                  </>
+                )}
+              </View>
             </TouchableOpacity>
           </Animated.View>
-        </View>
-        
-        {/* Decorative elements */}
-        <View style={styles.decorContainer}>
-          <View style={[styles.decorItem, styles.decorHeart]} />
-          <View style={[styles.decorItem, styles.decorStar]} />
-          <View style={[styles.decorItem, styles.decorCircle]} />
-          <View style={[styles.decorItem, styles.decorSquare]} />
-          <View style={[styles.decorItem, styles.decorTriangle]} />
-          <View style={[styles.decorItem, styles.decorPlus]} />
-        </View>
-
-        {/* Form content */}
-        <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.keyboardView}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
-        >
-          <ScrollView 
-            ref={scrollViewRef}
-            style={styles.scrollView}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.scrollViewContent}
-          >
-            <Animated.View 
-              style={[
-                styles.cardContainer,
-                {
-                  opacity: fadeAnim,
-                  transform: [{ translateY: slideUpAnim }]
-                }
-              ]}
-            >
-              {formSections.map(renderFormSection)}
-            </Animated.View>
-          </ScrollView>
-        </KeyboardAvoidingView>
-
-        {/* Navigation buttons */}
-        {!keyboardVisible && (
-          <View style={styles.navigationButtons}>
-            <TouchableOpacity
-              style={[styles.navButton, styles.prevButton, activeSection === 0 && styles.disabledButton]}
-              onPress={handlePrevSection}
-              disabled={activeSection === 0}
-            >
-              <Text style={[styles.prevButtonText, activeSection === 0 && styles.disabledButtonText]}>
-                Previous
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[styles.navButton, styles.nextButton]}
-              onPress={handleNextSection}
-            >
-              <Text style={styles.nextButtonText}>
-                {activeSection === formSections.length - 1 ? 'Save' : 'Next'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </Animated.View>
-    </SafeAreaView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#ff4a93',
-  },
   container: {
     flex: 1,
-    backgroundColor: '#fff0f5',
+    backgroundColor: '#f8f9fa',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff0f5',
+    backgroundColor: '#f8f9fa',
   },
   loadingText: {
     marginTop: 12,
     fontSize: 16,
     color: '#ff4a93',
-    fontFamily: 'Poppins-Regular',
+  },
+  headerSafeArea: {
+    backgroundColor: '#ff4a93',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0,
   },
   header: {
     backgroundColor: '#ff4a93',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight || 24 : 10,
-    paddingBottom: 15,
-    paddingHorizontal: 20,
-    height: Platform.OS === 'android' ? 80 : 60,
+    paddingHorizontal: Math.max(16, screenWidth * 0.04),
+    paddingVertical: Math.max(12, screenHeight * 0.015),
+    minHeight: Math.max(56, screenHeight * 0.07),
     elevation: 4,
-    shadowColor: '#e05c97',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
-  backButton: {
-    padding: 8,
+  headerButton: {
+    padding: Math.max(8, screenWidth * 0.02),
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    minWidth: Math.max(40, screenWidth * 0.1),
+    minHeight: Math.max(40, screenWidth * 0.1),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitleContainer: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: 16,
   },
   headerTitle: {
-    fontSize: 18,
-    color: '#fff',
-    fontFamily: 'Poppins-SemiBold',
+    fontSize: Math.max(18, screenWidth * 0.045),
     fontWeight: '600',
-  },
-  saveButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    borderRadius: 20,
-    minWidth: 70,
-    alignItems: 'center',
-  },
-  saveButtonText: {
     color: '#fff',
-    fontSize: 14,
-    fontFamily: 'Poppins-Medium',
-    fontWeight: '600',
+    textAlign: 'center',
   },
-  keyboardView: {
+  keyboardAvoidingContainer: {
     flex: 1,
   },
   scrollView: {
     flex: 1,
   },
-  scrollViewContent: {
-    paddingVertical: 20,
-    paddingHorizontal: 16,
-    paddingBottom: 100,
+  scrollContent: {
+    padding: Math.max(16, screenWidth * 0.04),
+    paddingBottom: Math.max(32, screenHeight * 0.04),
   },
-  cardContainer: {
-    backgroundColor: 'transparent',
-    marginBottom: 70,
-  },
-  decorContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: height * 0.2,
-    overflow: 'hidden',
-    backgroundColor: '#ffd1e6',
-    borderBottomLeftRadius: 60,
-    borderBottomRightRadius: 60,
-    zIndex: -1,
-  },
-  decorItem: {
-    position: 'absolute',
-    opacity: 0.5,
-  },
-  decorHeart: {
-    width: 20,
-    height: 20,
-    backgroundColor: '#ff7eb9',
-    borderRadius: 10,
-    transform: [{ rotate: '45deg' }],
-    top: '20%',
-    left: '30%',
-  },
-  decorStar: {
-    width: 16,
-    height: 16,
-    backgroundColor: '#ffbee0',
-    borderRadius: 8,
-    top: '15%',
-    right: '25%',
-  },
-  decorCircle: {
-    width: 22,
-    height: 22,
-    backgroundColor: '#ff80b3',
-    borderRadius: 11,
-    top: '30%',
-    left: '60%',
-  },
-  decorSquare: {
-    width: 14,
-    height: 14,
-    backgroundColor: '#ff9dcc',
-    borderRadius: 2,
-    top: '20%',
-    right: '40%',
-  },
-  decorTriangle: {
-    width: 0,
-    height: 0,
-    borderLeftWidth: 10,
-    borderRightWidth: 10,
-    borderBottomWidth: 18,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderBottomColor: '#ffb3d9',
-    top: '35%',
-    left: '20%',
-  },
-  decorPlus: {
-    width: 18,
-    height: 18,
-    backgroundColor: '#ffcce6',
-    borderRadius: 2,
-    top: '10%',
-    right: '15%',
-  },
-  formSection: {
+  formCard: {
     backgroundColor: '#ffffff',
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: '#e05c97',
-    shadowOffset: { width: 0, height: 4 },
+    borderRadius: 12,
+    padding: Math.max(20, screenWidth * 0.05),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 5,
+    shadowRadius: 8,
+    elevation: 4,
+    marginBottom: Math.max(16, screenHeight * 0.02),
   },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  sectionTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  section: {
+    marginBottom: Math.max(24, screenHeight * 0.03),
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: Math.max(16, screenWidth * 0.045),
     fontWeight: '600',
-    color: '#0F172A',
-    marginLeft: 10,
-    fontFamily: 'Poppins-Medium',
-  },
-  sectionProgress: {
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  progressText: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '500',
-    fontFamily: 'Poppins-Regular',
-  },
-  formFields: {
-    marginTop: 8,
+    color: '#212529',
+    marginBottom: Math.max(16, screenHeight * 0.02),
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
   },
   inputGroup: {
-    marginBottom: 20,
+    marginBottom: Math.max(16, screenHeight * 0.02),
   },
   inputLabel: {
-    fontSize: 14,
-    color: '#444',
-    marginBottom: 8,
-    fontFamily: 'Poppins-Medium',
+    fontSize: Math.max(14, screenWidth * 0.035),
     fontWeight: '500',
+    color: '#495057',
+    marginBottom: 6,
   },
   required: {
-    color: '#ff4a93',
+    color: '#dc3545',
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#f2d1e0',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    height: 50,
-    backgroundColor: '#fcfcff',
+    borderColor: '#ced4da',
+    borderRadius: 8,
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 4,
+    minHeight: Math.max(48, screenHeight * 0.06),
+  },
+  textAreaContainer: {
+    alignItems: 'flex-start',
+    minHeight: Math.max(100, screenHeight * 0.12),
+    paddingVertical: 4,
+  },
+  iconContainer: {
+    padding: Math.max(12, screenWidth * 0.03),
+    marginRight: 4,
   },
   input: {
     flex: 1,
-    fontSize: 15,
-    fontFamily: 'Poppins-Regular',
-    color: '#333',
+    fontSize: Math.max(16, screenWidth * 0.04),
+    color: '#212529',
+    paddingVertical: Math.max(12, screenHeight * 0.015),
+    paddingRight: 12,
+  },
+  textArea: {
+    textAlignVertical: 'top',
+    minHeight: Math.max(80, screenHeight * 0.1),
   },
   inputFocused: {
     borderColor: '#ff4a93',
-    backgroundColor: '#fffbfd',
     shadowColor: '#ff4a93',
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 1,
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 2,
   },
   inputError: {
-    borderColor: '#ffb3b3',
-    backgroundColor: '#fff5f5',
+    borderColor: '#dc3545',
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
   },
   errorText: {
-    color: '#ff4a93',
-    fontSize: 12,
-    marginTop: 4,
-    fontFamily: 'Poppins-Regular',
-  },
-  textArea: {
-    height: 100,
-    textAlignVertical: 'top',
+    fontSize: Math.max(12, screenWidth * 0.03),
+    color: '#dc3545',
+    marginLeft: 4,
+    flex: 1,
+    flexWrap: 'wrap',
   },
   genderContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  genderOption: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
     borderWidth: 1,
-    borderColor: '#f2d1e0',
+    borderColor: '#ced4da',
     borderRadius: 8,
-    backgroundColor: '#fcfcff',
-    marginHorizontal: 4,
-    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+    minHeight: Math.max(48, screenHeight * 0.06),
   },
-  genderOptionSelected: {
-    borderColor: '#ff4a93',
-    backgroundColor: '#fff0f5',
+  genderDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Math.max(16, screenWidth * 0.04),
   },
   genderText: {
-    fontSize: 14,
-    color: '#64748B',
-    fontFamily: 'Poppins-Regular',
-  },
-  genderTextSelected: {
-    color: '#ff4a93',
-    fontWeight: '600',
-    fontFamily: 'Poppins-Medium',
-  },
-  navigationButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    backgroundColor: '#fff',
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    borderTopWidth: 1,
-    borderTopColor: '#f2d1e0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  navButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 120,
-  },
-  prevButton: {
-    backgroundColor: '#F1F5F9',
-    borderWidth: 1,
-    borderColor: '#f2d1e0',
-  },
-  prevButtonText: {
-    fontSize: 14,
+    fontSize: Math.max(16, screenWidth * 0.04),
+    color: '#495057',
+    marginLeft: 12,
     fontWeight: '500',
-    color: '#0F172A',
-    fontFamily: 'Poppins-Medium',
   },
-  nextButton: {
+  submitButton: {
     backgroundColor: '#ff4a93',
+    borderRadius: 8,
+    marginTop: Math.max(16, screenHeight * 0.02),
     shadowColor: '#ff4a93',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
-    elevation: 2,
+    elevation: 3,
+    minHeight: Math.max(48, screenHeight * 0.06),
   },
-  nextButtonText: {
-    fontSize: 14,
+  submitButtonDisabled: {
+    backgroundColor: '#6c757d',
+  },
+  submitButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Math.max(14, screenHeight * 0.018),
+    paddingHorizontal: Math.max(24, screenWidth * 0.06),
+  },
+  submitButtonText: {
+    fontSize: Math.max(16, screenWidth * 0.04),
     fontWeight: '600',
-    color: '#fff',
-    fontFamily: 'Poppins-Medium',
-  },
-  disabledButton: {
-    backgroundColor: '#F8FAFC',
-    borderColor: '#F1F5F9',
-  },
-  disabledButtonText: {
-    color: '#CBD5E1',
+    color: '#ffffff',
+    marginLeft: 8,
   },
 });

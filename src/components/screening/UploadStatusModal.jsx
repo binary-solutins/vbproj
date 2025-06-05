@@ -26,7 +26,7 @@ const UploadStatusModal = ({ status, progress, error, setStatus, onRetry }) => {
           {status === 'success' && (
             <>
               <Feather name="check-circle" size={50} color="#10B981" />
-              <Text style={styles.modalText}>Upload Successful!</Text>
+              <Text style={styles.modalText}>Generated Successfully!</Text>
               <TouchableOpacity
                 style={styles.modalButton}
                 onPress={() => setStatus('idle')}

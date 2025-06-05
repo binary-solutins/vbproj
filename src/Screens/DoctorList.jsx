@@ -114,7 +114,7 @@ export default function DoctorList() {
       }
       
       const response = await authAPI.get(`/doctors/hospital/${userData.id}`);
-      const doctorData = response?.data || [];
+      const doctorData = response?.data?.doctors || [];
       
       // Initialize animation values for each doctor
       doctorData.forEach((doctor, index) => {
@@ -139,6 +139,17 @@ export default function DoctorList() {
       setLoading(false);
     }
   };
+
+  // Call loadDoctors whenever screen is focused
+  useEffect(() => {
+    const focusListener = navigation.addListener('focus', () => {
+      loadDoctors();
+    });
+
+    return () => {
+      focusListener();
+    };
+  }, [navigation]);
   
   const handleRefresh = async () => {
     setRefreshing(true);

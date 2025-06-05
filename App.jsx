@@ -27,24 +27,27 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [userToken, setUserToken] = useState(null);
 
-  // Check for token when app starts
   useEffect(() => {
-    const checkToken = async () => {
+    const loadApp = async () => {
       try {
         const token = await AsyncStorage.getItem('userToken');
         setUserToken(token);
+        // Wait 7 seconds before proceeding
+        setTimeout(() => {
+          setIsLoading(false);
+        }, 5000);
       } catch (error) {
         console.error('Failed to get token:', error);
-      } finally {
-        // After checking, we're no longer loading
-        setIsLoading(false);
+        setIsLoading(false); // Fallback in case of error
       }
     };
-
     checkToken();
   }, []);
 
-  // Show splash screen while checking token
+    loadApp();
+  }, []);
+
+
   if (isLoading) {
     return <SplashScreen />;
   }
@@ -52,8 +55,9 @@ export default function App() {
   return (
     <NavigationContainer>
       <Stack.Navigator
-        initialRouteName={userToken ? 'Home' : 'Login'}
-        screenOptions={{headerShown: false}}>
+        initialRouteName={userToken ? "Home" : "Login"}
+        screenOptions={{ headerShown: false }}
+      >
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="signup" component={SignupScreen} />
         <Stack.Screen name="Home" component={HomeScreen} />
@@ -69,11 +73,13 @@ export default function App() {
         />
         <Stack.Screen name="OTP" component={VerifyOTPScreen} />
         <Stack.Screen name="EditHospital" component={EditHospital} />
+
         <Stack.Screen
           name="PDFViewer"
           component={PDFViewer}
           options={{headerShown: false}}
         />
+
         <Stack.Screen name="PatientReports" component={PatientReports} />
         <Stack.Screen name="Analytics" component={Analytics} />
       </Stack.Navigator>

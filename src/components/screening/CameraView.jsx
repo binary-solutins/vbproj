@@ -15,6 +15,7 @@ import {
 import { RNCamera } from 'react-native-camera';
 import Feather from 'react-native-vector-icons/Feather';
 import ImageCropPicker from 'react-native-image-crop-picker';
+import { useSafeAreaInsets } from 'react-native-safe-area-context'; // Add this import
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -34,6 +35,7 @@ const CameraView = forwardRef(({ currentStep, processing, onCapture, onClose }, 
   const camera = useRef(null);
   const [hasPermission, setHasPermission] = useState(null);
   const [countdown, setCountdown] = useState(null);
+  const insets = useSafeAreaInsets(); // Get safe area insets
   
   // State variables for camera features
   const [showControls, setShowControls] = useState(false);
@@ -188,9 +190,9 @@ const CameraView = forwardRef(({ currentStep, processing, onCapture, onClose }, 
 
   return (
     <View style={styles.container}>
-      <StatusBar hidden />
+      <StatusBar hidden translucent backgroundColor="transparent" />
       
-      {/* Camera View */}
+      {/* Camera View - Now fills entire screen */}
       <RNCamera
         ref={camera}
         style={styles.camera}
@@ -206,9 +208,10 @@ const CameraView = forwardRef(({ currentStep, processing, onCapture, onClose }, 
         }
         onTap={handleFocus}
       >
-        <SafeAreaView style={styles.overlay}>
-          {/* Header with pink background */}
-          <View style={styles.header}>
+        {/* Overlay without SafeAreaView wrapper to allow full screen usage */}
+        <View style={styles.overlay}>
+          {/* Header with pink background - positioned absolutely */}
+          <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
             <Text style={styles.stepText}>Step {currentStep + 1} of 6</Text>
             <TouchableOpacity style={styles.closeButton} onPress={onClose}>
               <Feather name="x" size={24} color="#fff" />
@@ -266,8 +269,8 @@ const CameraView = forwardRef(({ currentStep, processing, onCapture, onClose }, 
             </View>
           )}
           
-          {/* Bottom control panel */}
-          <View style={styles.bottomPanel}>
+          {/* Bottom control panel - positioned absolutely */}
+          <View style={[styles.bottomPanel, { paddingBottom: insets.bottom + 20 }]}>
             {processing ? (
               <View style={styles.processingContainer}>
                 <ActivityIndicator size="large" color="#DB2777" />
@@ -307,8 +310,8 @@ const CameraView = forwardRef(({ currentStep, processing, onCapture, onClose }, 
             )}
           </View>
           
-          {/* Step progress indicators */}
-          <View style={styles.stepIndicatorContainer}>
+          {/* Step progress indicators - positioned absolutely */}
+          <View style={[styles.stepIndicatorContainer, { bottom: insets.bottom + 100 }]}>
             {STEP_DESCRIPTIONS.map((_, index) => (
               <View 
                 key={index} 
@@ -319,7 +322,7 @@ const CameraView = forwardRef(({ currentStep, processing, onCapture, onClose }, 
               />
             ))}
           </View>
-        </SafeAreaView>
+        </View>
       </RNCamera>
       
       {/* Crop Modal */}
@@ -381,20 +384,28 @@ const styles = StyleSheet.create({
   },
   camera: {
     flex: 1,
+    width: '100%',
+    height: '100%',
   },
   overlay: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: 'transparent',
-    flexDirection: 'column',
-    justifyContent: 'space-between',
   },
   header: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 20,
     backgroundColor: 'rgba(219, 39, 119, 0.8)', // Pink theme with opacity
-    paddingTop: 50, // Extra padding for status bar
+    zIndex: 1,
   },
   stepText: {
     color: '#fff',
@@ -410,8 +421,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   instructionPanel: {
+    position: 'absolute',
+    top: 120, // Adjusted to account for header
+    left: 20,
+    right: 20,
     backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    margin: 20,
     borderRadius: 10,
     padding: 15,
     flexDirection: 'row',
@@ -424,6 +438,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
+    zIndex: 1,
   },
   instructionIcon: {
     marginRight: 15,
@@ -442,7 +457,11 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   guideOverlay: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -471,12 +490,16 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#DB2777',
     backgroundColor: 'transparent',
+    zIndex: 2,
   },
   controlsPanel: {
+    position: 'absolute',
+    right: 20,
+    top: '50%',
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
     padding: 15,
-    margin: 20,
     borderRadius: 10,
+    zIndex: 1,
   },
   controlGroup: {
     marginBottom: 15,
@@ -491,9 +514,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   bottomPanel: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
     padding: 20,
-    paddingBottom: 40,
+    zIndex: 1,
   },
   captureContainer: {
     flexDirection: 'row',
@@ -560,11 +587,15 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   stepIndicatorContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 15,
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    zIndex: 1,
   },
   stepIndicator: {
     width: 10,

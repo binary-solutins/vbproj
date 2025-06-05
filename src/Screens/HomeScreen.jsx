@@ -20,6 +20,7 @@ import Icon from 'react-native-vector-icons/Feather';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authAPI } from '../api/axios';
 import RecentActivity from '../components/common/RecentActivity';
+import { useAuth } from '../context/AuthContext';
 
 
 const { width, height } = Dimensions.get('window');
@@ -34,51 +35,70 @@ export default function HomeScreen() {
   const [reportsLoading, setReportsLoading] = useState(false);
   const [reportsError, setReportsError] = useState(null);
   const navigation = useNavigation();
-
+ 
   // Load user data from AsyncStorage and fetch patients/doctors count
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        // Get user data
-        const userDataString = await AsyncStorage.getItem('userData');
-        if (userDataString) {
-          const parsedUserData = JSON.parse(userDataString);
-          setUserData(parsedUserData);
+  const loadData = async () => {
+    try {
+      // Get user data
+      const userDataString = await AsyncStorage.getItem('userData');
+      if (userDataString) {
+        const parsedUserData = JSON.parse(userDataString);
+        setUserData(parsedUserData);
+        
+        if (!parsedUserData || !parsedUserData.id) {
+          console.error('Invalid user data');
+          return;
+        }
+        
+        // Fetch doctors and patients data
+        try {
+          const doctorsResponse = await authAPI.get(`/doctors/hospital/${parsedUserData.id}`);
+          setDoctors(doctorsResponse?.data?.doctors || []);
           
-          if (!parsedUserData || !parsedUserData.id) {
-            console.error('Invalid user data');
+          // Check if hospital is verified
+          if (doctorsResponse?.data?.isHospitalVerified === false) {
+            await AsyncStorage.removeItem('userToken');
+            await AsyncStorage.removeItem('userData');
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Login' }],
+            });
             return;
           }
           
-          // Fetch doctors and patients data
-          try {
-            const doctorsResponse = await authAPI.get(`/doctors/hospital/${parsedUserData.id}`);
-            setDoctors(doctorsResponse?.data || []);
-            
-            const patientsResponse = await authAPI.get(`/patients/hospital/${parsedUserData.id}`);
-            setPatients(patientsResponse?.data || []);
-            
-            // Fetch recent reports
-            fetchReports(parsedUserData.id);
-          } catch (apiError) {
-            console.error('API Error:', apiError);
-            Alert.alert('Error', 'Failed to load doctors and patients data');
-          }
-        } else {
-          const tokenString = await AsyncStorage.getItem('authToken');
-          if (tokenString) {
-            // API call would go here if needed
-          }
+          const patientsResponse = await authAPI.get(`/patients/hospital/${parsedUserData.id}`);
+          setPatients(patientsResponse?.data || []);
+          
+          // Fetch recent reports
+          fetchReports(parsedUserData.id);
+        } catch (apiError) {
+          console.error('API Error:', apiError);
+          Alert.alert('Error', 'Failed to load doctors and patients data');
         }
-      } catch (error) {
-        console.error('Error fetching user data:', error);
-      } finally {
-        setLoading(false);
+      } else {
+        const tokenString = await AsyncStorage.getItem('authToken');
+        if (tokenString) {
+          // API call would go here if needed
+        }
       }
-    };
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  // Call loadData when component mounts and when screen gains focus
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadData();
+    });
+
+    // Initial load
     loadData();
-  }, []);
+
+    return unsubscribe;
+  }, [navigation]);
 
   const fetchReports = async (hospitalId) => {
     if (!hospitalId) return;
@@ -279,7 +299,7 @@ export default function HomeScreen() {
                     />
                   </View>
                   <View style={styles.menuTextContainer}>
-                    <Text style={styles.menuItemTitle}>Screening Page</Text>
+                    <Text style={styles.menuItemTitle}>Start Screening</Text>
                     <Text style={styles.menuItemSubtitle}>
                       Manage and conduct breast cancer screenings
                     </Text>
@@ -373,10 +393,10 @@ export default function HomeScreen() {
 
           <TouchableOpacity
             style={styles.navItem}
-            onPress={() => navigation.navigate('AddDoctor')}
+            onPress={() => navigation.navigate('BreastScreeningScreen')}
           >
             <View style={styles.fabContainer}>
-              <Icon name="plus" size={24} color="#fff" />
+              <Icon name="camera" size={24} color="#fff" />
             </View>
           </TouchableOpacity>
 
