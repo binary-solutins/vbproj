@@ -68,8 +68,9 @@ const SplashScreen = ({ navigation }) => {
   const dot3Anim = useRef(new Animated.Value(0)).current;
   const dot4Anim = useRef(new Animated.Value(0)).current;
 
-  // Bottom pagination
+  // Bottom pagination and powered by
   const paginationAnim = useRef(new Animated.Value(0)).current;
+  const poweredByAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     // Stage 1: Logo and title animations
@@ -195,6 +196,15 @@ const SplashScreen = ({ navigation }) => {
         useNativeDriver: true,
       }).start();
     }, 2200);
+
+    // Stage 7: Powered by logo
+    setTimeout(() => {
+      Animated.timing(poweredByAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }).start();
+    }, 2400);
 
     // Auto navigate to Home screen after 3.5 seconds
    
@@ -485,23 +495,45 @@ const SplashScreen = ({ navigation }) => {
         </View>
       </Animated.View>
 
-      {/* Bottom pagination only */}
-      <Animated.View style={[
-        styles.bottom,
-        {
-          opacity: paginationAnim,
-          transform: [{ translateY: paginationAnim.interpolate({
-            inputRange: [0, 1],
-            outputRange: [20, 0]
-          })}]
-        }
-      ]}>
-        <View style={styles.pagination}>
-          <View style={[styles.paginationDot, styles.activeDot]} />
-          <View style={styles.paginationDot} />
-          <View style={styles.paginationDot} />
-        </View>
-      </Animated.View>
+      {/* Bottom section with pagination and powered by */}
+      <View style={styles.bottom}>
+        {/* Pagination */}
+        <Animated.View style={[
+          styles.paginationContainer,
+          {
+            opacity: paginationAnim,
+            transform: [{ translateY: paginationAnim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [20, 0]
+            })}]
+          }
+        ]}>
+          <View style={styles.pagination}>
+            <View style={[styles.paginationDot, styles.activeDot]} />
+            <View style={styles.paginationDot} />
+            <View style={styles.paginationDot} />
+          </View>
+        </Animated.View>
+
+        {/* Powered By */}
+        <Animated.View style={[
+          styles.poweredByContainer,
+          {
+            opacity: poweredByAnim,
+            transform: [{ translateY: poweredByAnim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [15, 0]
+            })}]
+          }
+        ]}>
+          <Text style={styles.poweredByText}>Powered by</Text>
+          <Image 
+            source={{ uri: 'https://static.wixstatic.com/media/048d7e_644b43b18e8347d6b2b4c65943725115~mv2.png/v1/fill/w_554,h_166,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/D3S%20Healthcare%20Logo.png' }}
+            style={styles.poweredByLogo}
+            resizeMode="contain"
+          />
+        </Animated.View>
+      </View>
     </View>
   );
 };
@@ -637,6 +669,9 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     width: '100%',
   },
+  paginationContainer: {
+    marginBottom: 15,
+  },
   pagination: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -652,6 +687,20 @@ const styles = StyleSheet.create({
   activeDot: {
     width: 24,
     backgroundColor: COLORS.primary,
+  },
+  poweredByContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  poweredByText: {
+    fontSize: 12,
+    fontFamily: 'Poppins-Regular',
+    color: COLORS.lightText,
+    marginBottom: 5,
+  },
+  poweredByLogo: {
+    width: 120,
+    height: 36,
   },
 });
 

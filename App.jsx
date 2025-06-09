@@ -33,7 +33,7 @@ export default function App() {
       try {
         const token = await AsyncStorage.getItem('userToken');
         setUserToken(token);
-        // Wait 7 seconds before proceeding
+        // Wait 5 seconds before proceeding
         setTimeout(() => {
           setIsLoading(false);
         }, 5000);

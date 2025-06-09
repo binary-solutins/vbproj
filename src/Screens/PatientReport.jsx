@@ -393,6 +393,7 @@ export default function PatientReports() {
         type: 'application/pdf',
         failOnCancel: false,
         showAppsToView: true,
+
       };
 
       try {
@@ -445,23 +446,24 @@ export default function PatientReports() {
         counter++;
       }
 
-      const downloadConfig = {
-        fileCache: true,
-        trusty: true,
-        path: finalFilePath,
-      };
+let downloadConfig = {
+  fileCache: true,
+  trusty: true,
+};
 
-      // Add Android download manager configuration
-      if (Platform.OS === 'android') {
-        downloadConfig.addAndroidDownloads = {
-          useDownloadManager: true,
-          notification: true,
-          path: finalFilePath,
-          description: 'Downloading medical report',
-          mime: 'application/pdf',
-          mediaScannable: true,
-        };
-      }
+if (Platform.OS === 'android') {
+  downloadConfig.addAndroidDownloads = {
+    useDownloadManager: true,
+    notification: true,
+    path: finalFilePath,
+    description: 'Downloading medical report',
+    mime: 'application/pdf',
+    mediaScannable: true,
+  };
+} else {
+  downloadConfig.path = finalFilePath;
+}
+
 
       const response = await config(downloadConfig).fetch(
         'GET',
