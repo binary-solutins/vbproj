@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, ScrollView, Alert, StatusBar, StyleSheet, Platform } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import React, {useState, useEffect, useRef} from 'react';
+import {View, ScrollView, Alert, StatusBar, StyleSheet} from 'react-native';
+import {useNavigation} from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { authAPI } from '../api/axios';
+import {authAPI} from '../api/axios';
 import ScreeningHeader from '../components/screening/ScreeningHeader';
 import SelectionSection from '../components/screening/SelectionSection';
 import DeviceConnectionSection from '../components/screening/DeviceConnectionSection';
@@ -15,7 +15,7 @@ import LoadingOverlay from '../components/common/LoadingOverlay';
 
 import useScreeningCapture from '../hooks/useScreeningCapture';
 import useReportGeneration from '../hooks/useReportGeneration';
-import { SCREENING_STEPS } from '../constants/screeningConstants';
+import {SCREENING_STEPS} from '../constants/screeningConstants';
 import useBluetoothClassicDevice from '../hooks/useBluetoothDevice';
 
 const BreastScreeningScreen = () => {
@@ -26,22 +26,16 @@ const BreastScreeningScreen = () => {
   const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [reportGenerated, setReportGenerated] = useState(false);
-  
+
   // Reference to camera component to trigger capture
   const cameraRef = useRef(null);
 
   const {
-    scanForDevices,
     bluetoothConnected,
     scanningBluetooth,
     bluetoothDevice,
-    connectToBluetoothDevice
+    connectToBluetoothDevice,
   } = useBluetoothClassicDevice();
-  
-  // Scan for devices when the component mounts
-  useEffect(() => {
-    scanForDevices();
-  }, []);
 
   const {
     currentStep,
@@ -51,7 +45,7 @@ const BreastScreeningScreen = () => {
     setCameraVisible,
     startScreening,
     handleCapture,
-    resetCapture
+    resetCapture,
   } = useScreeningCapture(selectedDoctor, selectedPatient);
 
   const {
@@ -61,12 +55,12 @@ const BreastScreeningScreen = () => {
     uploadProgress,
     uploadError,
     setUploadStatus,
-    generateAndUploadReport
+    generateAndUploadReport,
   } = useReportGeneration(capturedImages, selectedDoctor, selectedPatient);
 
   useEffect(() => {
     loadData();
-    
+
     return () => {
       // Cleanup happens in the useBluetoothClassicDevice hook
     };
@@ -76,40 +70,100 @@ const BreastScreeningScreen = () => {
   useEffect(() => {
     const handleReportGeneration = async () => {
       // Check if all images have been captured and report hasn't been generated yet
-      if (capturedImages && 
-          Object.keys(capturedImages).length === SCREENING_STEPS.length && 
-          !reportGenerated && 
-          !generatingReport &&
-          selectedDoctor && 
-          selectedPatient) {
-        
-        console.log('[Auto Report Generation] All images captured, generating report...');
+      if (
+        capturedImages &&
+        Object.keys(capturedImages).length === SCREENING_STEPS.length &&
+        !reportGenerated &&
+        !generatingReport &&
+        selectedDoctor &&
+        selectedPatient
+      ) {
         setReportGenerated(true);
-        
+
         try {
           await generateAndUploadReport();
-          console.log('[Auto Report Generation] Report generated successfully');
         } catch (error) {
-          console.error('[Auto Report Generation] Error:', error);
           setReportGenerated(false); // Reset flag on error to allow retry
           Alert.alert(
-            'Report Generation Failed', 
-            'Failed to generate report: ' + error.message + '\n\nYou can try again using the "Generate Report" button.',
-            [{ text: 'OK' }]
+            'Report Generation Failed',
+            'Failed to generate report: ' +
+              error.message +
+              '\n\nYou can try again using the "Generate Report" button.',
+            [{text: 'OK'}],
           );
         }
       }
     };
 
     handleReportGeneration();
-  }, [capturedImages, selectedDoctor, selectedPatient, reportGenerated, generatingReport]);
-  
+  }, [
+    capturedImages,
+    selectedDoctor,
+    selectedPatient,
+    reportGenerated,
+    generatingReport,
+    generateAndUploadReport,
+  ]);
+
   // Set up data listener for the Bluetooth device capture button
   useEffect(() => {
+    // Handler for device capture button press
+    const handleDeviceCaptureButton = () => {
+      // First, check if we're in camera mode and if the camera ref is valid
+      if (cameraVisible && cameraRef.current) {
+        try {
+          cameraRef.current.takePicture();
+        } catch (error) {
+          console.error('Error calling takePicture:', error);
+        }
+      }
+    };
+
+    const setupBluetoothButtonListener = () => {
+      if (!bluetoothDevice) {
+        return;
+      }
+
+      // Clean up any existing subscription first
+      if (bluetoothDevice._screenDataSubscription) {
+        bluetoothDevice._screenDataSubscription.remove();
+      }
+
+      // Set up new data subscription
+      try {
+        const dataSubscription = bluetoothDevice.onDataReceived(data => {
+          // Check if the data indicates a button press
+          // The exact format depends on your device's output
+          const dataStr = data.data ? data.data.toString() : '';
+
+          if (
+            dataStr.includes('CAPTURE') ||
+            dataStr === '1' ||
+            dataStr.trim() !== ''
+          ) {
+            // Use setTimeout to ensure this runs on the next JS event loop cycle
+            // This helps avoid potential race conditions with component rendering
+            setTimeout(() => {
+              handleDeviceCaptureButton();
+            }, 0);
+          }
+        });
+
+        // Store subscription for cleanup
+        bluetoothDevice._screenDataSubscription = dataSubscription;
+      } catch (error) {
+        console.error('Error setting up data subscription:', error);
+      }
+    };
+
     if (bluetoothDevice && bluetoothConnected) {
-      setupBluetoothButtonListener();
+      try {
+        setupBluetoothButtonListener();
+      } catch (error) {
+        console.error('Error setting up Bluetooth button listener:', error);
+      }
     }
-    
+
     // Cleanup function
     return () => {
       if (bluetoothDevice && bluetoothDevice._screenDataSubscription) {
@@ -118,52 +172,12 @@ const BreastScreeningScreen = () => {
     };
   }, [bluetoothDevice, bluetoothConnected, cameraVisible, processingCapture]);
 
-  // Handler for device capture button press
-  const handleDeviceCaptureButton = () => {
-    console.log('Device button press handler triggered');
-    
-    // First, check if we're in camera mode and if the camera ref is valid
-    if (cameraVisible && cameraRef.current) {
-      console.log('Taking picture via camera ref');
-      cameraRef.current.takePicture();
-    } 
-  };
-
-  const setupBluetoothButtonListener = () => {
-    if (!bluetoothDevice) return;
-    
-    // Clean up any existing subscription first
-    if (bluetoothDevice._screenDataSubscription) {
-      bluetoothDevice._screenDataSubscription.remove();
-    }
-    
-    // Set up new data subscription
-    const dataSubscription = bluetoothDevice.onDataReceived(data => {
-      console.log('Data received from device:', data);
-      
-      // Check if the data indicates a button press
-      // The exact format depends on your device's output
-      const dataStr = data.data ? data.data.toString() : '';
-      
-      if (dataStr.includes('CAPTURE') || dataStr === '1' || dataStr.trim() !== '') {
-        console.log('Capture button pressed on device!');
-        // Use setTimeout to ensure this runs on the next JS event loop cycle
-        // This helps avoid potential race conditions with component rendering
-        setTimeout(() => {
-          handleDeviceCaptureButton();
-        }, 0);
-      }
-    });
-    
-    // Store subscription for cleanup
-    bluetoothDevice._screenDataSubscription = dataSubscription;
-  };
-
   const loadData = async () => {
     try {
       setLoading(true);
+
       const userData = JSON.parse(await AsyncStorage.getItem('userData'));
-      
+
       if (!userData || !userData.id) {
         Alert.alert('Error', 'User data not found. Please log in again.');
         // Navigate to login if needed
@@ -171,10 +185,14 @@ const BreastScreeningScreen = () => {
       }
 
       // Adjust these endpoints to match your actual API routes
-      const doctorsResponse = await authAPI.get(`/doctors/hospital/${userData.id}`);
+      const doctorsResponse = await authAPI.get(
+        `/doctors/hospital/${userData.id}`,
+      );
       setDoctors(doctorsResponse?.data?.doctors || []);
 
-      const patientsResponse = await authAPI.get(`/patients/hospital/${userData.id}`);
+      const patientsResponse = await authAPI.get(
+        `/patients/hospital/${userData.id}`,
+      );
       setPatients(patientsResponse?.data || []);
     } catch (error) {
       console.error('Error loading data:', error);
@@ -186,7 +204,10 @@ const BreastScreeningScreen = () => {
 
   const handleManualReportGeneration = async () => {
     if (Object.keys(capturedImages).length !== SCREENING_STEPS.length) {
-      Alert.alert('Error', 'Please capture all 6 images before generating report.');
+      Alert.alert(
+        'Error',
+        'Please capture all 6 images before generating report.',
+      );
       return;
     }
 
@@ -218,7 +239,9 @@ const BreastScreeningScreen = () => {
         onRetry={handleManualReportGeneration}
       />
 
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}>
         <SelectionSection
           doctors={doctors}
           patients={patients}
@@ -234,7 +257,7 @@ const BreastScreeningScreen = () => {
           onConnect={connectToBluetoothDevice}
         />
 
-<ActionButtons
+        <ActionButtons
           canStart={selectedDoctor && selectedPatient && !reportGenerated}
           isGenerating={generatingReport}
           hasReport={reportUrl !== null}
@@ -248,12 +271,8 @@ const BreastScreeningScreen = () => {
         <InformationSection />
 
         {Object.keys(capturedImages).length > 0 && (
-          <ProgressSection 
-            capturedImages={capturedImages} 
-          />
+          <ProgressSection capturedImages={capturedImages} />
         )}
-
-      
       </ScrollView>
 
       {cameraVisible && (

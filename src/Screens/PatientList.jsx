@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, {useState, useEffect, useRef} from 'react';
 import {
   View,
   Text,
@@ -19,16 +19,14 @@ import {
   Image,
 } from 'react-native';
 
-import { useNavigation } from '@react-navigation/native';
+import {useNavigation} from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
 import Feather from 'react-native-vector-icons/Feather';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { authAPI } from '../api/axios';
+import {authAPI} from '../api/axios';
 
-const { width, height } = Dimensions.get('window');
+const {width} = Dimensions.get('window');
 const HEADER_HEIGHT = 110;
-const CARD_MARGIN = 10;
-const CARD_WIDTH = width - (CARD_MARGIN * 4);
 
 export default function PatientsList() {
   const navigation = useNavigation();
@@ -73,7 +71,7 @@ export default function PatientsList() {
         duration: 1000,
         easing: Easing.linear,
         useNativeDriver: true,
-      })
+      }),
     ).start();
 
     Animated.sequence([
@@ -82,7 +80,7 @@ export default function PatientsList() {
         duration: 400,
         useNativeDriver: true,
       }),
-      Animated.delay(1000)
+      Animated.delay(1000),
     ]).start();
   };
 
@@ -96,14 +94,14 @@ export default function PatientsList() {
           `${patient.firstName} ${patient.lastName}`
             .toLowerCase()
             .includes(searchQuery.toLowerCase()) ||
-          patient.contact?.includes(searchQuery)
+          patient.contact?.includes(searchQuery),
       );
     }
 
     // Filter by category
     if (activeFilter !== 'all') {
-      filtered = filtered.filter(patient =>
-        patient.gender?.toLowerCase() === activeFilter.toLowerCase()
+      filtered = filtered.filter(
+        patient => patient.gender?.toLowerCase() === activeFilter.toLowerCase(),
       );
     }
 
@@ -113,7 +111,9 @@ export default function PatientsList() {
   const loadPatients = async () => {
     try {
       setLoading(true);
-      const userData = JSON.parse(await AsyncStorage.getItem('userData') || '{}');
+      const userData = JSON.parse(
+        (await AsyncStorage.getItem('userData')) || '{}',
+      );
 
       if (!userData.id) {
         setPatients([]);
@@ -166,14 +166,14 @@ export default function PatientsList() {
     setRefreshing(false);
   };
 
-  const handleDelete = (patientId) => {
+  const handleDelete = patientId => {
     Alert.alert(
       'Delete Patient',
       'Are you sure you want to delete this patient?',
       [
         {
           text: 'Cancel',
-          style: 'cancel'
+          style: 'cancel',
         },
         {
           text: 'Delete',
@@ -196,12 +196,12 @@ export default function PatientsList() {
                   toValue: 1,
                   duration: 200,
                   useNativeDriver: true,
-                })
+                }),
               ]).start();
 
               await authAPI.delete(`/patients/${patientId}`);
 
-              const updatedPatients = patients.filter(p => p.id !== patientId);
+              const updatedPatients = patients?.filter(p => p.id !== patientId);
               setPatients(updatedPatients);
               setFilteredPatients(updatedPatients);
 
@@ -213,11 +213,11 @@ export default function PatientsList() {
             }
           },
         },
-      ]
+      ],
     );
   };
 
-  const handleSearchFocus = (focused) => {
+  const handleSearchFocus = focused => {
     setSearchFocused(focused);
 
     Animated.timing(searchWidth, {
@@ -280,22 +280,24 @@ export default function PatientsList() {
   });
 
   // Render functions
-  const renderPatientCard = ({ item, index }) => {
+  const renderPatientCard = ({item, index}) => {
     // Generate a deterministic hue based on name
-    const nameHash = `${item.firstName}${item.lastName}`.split('').reduce(
-      (sum, char) => sum + char.charCodeAt(0), 0
-    );
+    const nameHash = `${item.firstName}${item.lastName}`
+      .split('')
+      .reduce((sum, char) => sum + char.charCodeAt(0), 0);
 
     // Create different gradients for different patients
-    const startColor = item.gender?.toLowerCase() === 'female'
-      ? '#FF4A93'
-      : item.gender?.toLowerCase() === 'male'
+    const startColor =
+      item.gender?.toLowerCase() === 'female'
+        ? '#FF4A93'
+        : item.gender?.toLowerCase() === 'male'
         ? '#4A93FF'
         : '#9333EA';
 
-    const endColor = item.gender?.toLowerCase() === 'female'
-      ? '#FF80B3'
-      : item.gender?.toLowerCase() === 'male'
+    const endColor =
+      item.gender?.toLowerCase() === 'female'
+        ? '#FF80B3'
+        : item.gender?.toLowerCase() === 'male'
         ? '#80B3FF'
         : '#A855F7';
 
@@ -312,28 +314,28 @@ export default function PatientsList() {
               {
                 scale: itemAnimation.interpolate({
                   inputRange: [0, 1],
-                  outputRange: [0.8, 1]
-                })
+                  outputRange: [0.8, 1],
+                }),
               },
               {
                 translateY: itemAnimation.interpolate({
                   inputRange: [0, 1],
-                  outputRange: [50, 0]
-                })
-              }
+                  outputRange: [50, 0],
+                }),
+              },
             ],
           },
-        ]}
-      >
+        ]}>
         <TouchableOpacity
           style={styles.patientCard}
-          onPress={() => navigation.navigate('PatientDetails', { patientId: item.id })}
-          activeOpacity={0.9}
-        >
+          onPress={() =>
+            navigation.navigate('PatientDetails', {patientId: item.id})
+          }
+          activeOpacity={0.9}>
           <LinearGradient
             colors={[startColor, endColor]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
+            start={{x: 0, y: 0}}
+            end={{x: 1, y: 0}}
             style={styles.cardBorderLeft}
           />
 
@@ -341,61 +343,68 @@ export default function PatientsList() {
             <View
               style={[
                 styles.initialCircle,
-                { backgroundColor: `${startColor}15` }
-              ]}
-            >
-              <Text style={[styles.initialText, { color: startColor }]}>
-                {item.firstName?.charAt(0) || '?'}{item.lastName?.charAt(0) || '?'}
+                {backgroundColor: `${startColor}15`},
+              ]}>
+              <Text style={[styles.initialText, {color: startColor}]}>
+                {item.firstName?.charAt(0) || '?'}
+                {item.lastName?.charAt(0) || '?'}
               </Text>
             </View>
           </View>
 
           <View style={styles.cardMiddle}>
-            <Text style={styles.patientName}>{item.firstName} {item.lastName}</Text>
+            <Text style={styles.patientName}>
+              {item.firstName} {item.lastName}
+            </Text>
             <View style={styles.patientDetails}>
               <View style={styles.detailItem}>
                 <Text style={styles.detailLabel}>Age:</Text>
                 <Text style={styles.detailValue}>{item.age || 'N/A'}</Text>
               </View>
               <View style={styles.detailDivider} />
-              <View style={styles.detailItem}>
-
-              </View>
+              <View style={styles.detailItem}></View>
             </View>
             <View style={styles.contactContainer}>
-              <Feather name="phone" size={12} color="#94A3B8" style={{ marginRight: 4 }} />
-              <Text style={styles.contactText}>{item.contact || 'No contact info'}</Text>
+              <Feather
+                name="phone"
+                size={12}
+                color="#94A3B8"
+                style={{marginRight: 4}}
+              />
+              <Text style={styles.contactText}>
+                {item.contact || 'No contact info'}
+              </Text>
             </View>
           </View>
 
-
           <View style={styles.cardRight}>
-  <View style={styles.actionButtons}>
-    <TouchableOpacity
-      style={[styles.actionButton, styles.viewButton]}
-      onPress={() => navigation.navigate('PatientDetails', { patientId: item.id })}
-    >
-      <Feather name="eye" size={16} color="#4A93FF" />
-    </TouchableOpacity>
+            <View style={styles.actionButtons}>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.viewButton]}
+                onPress={() =>
+                  navigation.navigate('PatientDetails', {patientId: item.id})
+                }>
+                <Feather name="eye" size={16} color="#4A93FF" />
+              </TouchableOpacity>
 
-    <TouchableOpacity
-      style={[styles.actionButton, styles.reportButton]}
-      onPress={() => navigation.navigate('PatientReports', {
-        patientId: item.id,
-        patientName: `${item.firstName} ${item.lastName}`
-      })}
-    >
-      <Feather name="file-text" size={16} color="#22C55E" />
-    </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.reportButton]}
+                onPress={() =>
+                  navigation.navigate('PatientReports', {
+                    patientId: item.id,
+                    patientName: `${item.firstName} ${item.lastName}`,
+                  })
+                }>
+                <Feather name="file-text" size={16} color="#22C55E" />
+              </TouchableOpacity>
 
-    <TouchableOpacity
-      style={[styles.actionButton, styles.deleteButton]}
-      onPress={() => handleDelete(item.id)}
-    >
-      <Feather name="trash-2" size={16} color="#FF4A93" />
-    </TouchableOpacity>
-  </View>
-</View>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.deleteButton]}
+                onPress={() => handleDelete(item.id)}>
+                <Feather name="trash-2" size={16} color="#FF4A93" />
+              </TouchableOpacity>
+            </View>
+          </View>
         </TouchableOpacity>
       </Animated.View>
     );
@@ -406,32 +415,30 @@ export default function PatientsList() {
 
     return (
       <View style={styles.emptyContainer}>
-        <Animated.View style={{
-          opacity: loadingAnim,
-          transform: [{ scale: loadingAnim }]
-        }}>
+        <Animated.View
+          style={{
+            opacity: loadingAnim,
+            transform: [{scale: loadingAnim}],
+          }}>
           <Feather name="users" size={60} color="#E2E8F0" />
         </Animated.View>
         <Text style={styles.emptyTitle}>
-          {searchQuery ? "No matching patients" : "No patients yet"}
+          {searchQuery ? 'No matching patients' : 'No patients yet'}
         </Text>
         <Text style={styles.emptyDescription}>
           {searchQuery
-            ? "Try adjusting your search or filter criteria"
-            : "Add your first patient to get started"
-          }
+            ? 'Try adjusting your search or filter criteria'
+            : 'Add your first patient to get started'}
         </Text>
         {!searchQuery && (
           <TouchableOpacity
             style={styles.emptyButton}
-            onPress={() => navigation.navigate('AddPatient')}
-          >
+            onPress={() => navigation.navigate('AddPatient')}>
             <LinearGradient
               colors={['#6366F1', '#818CF8']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.emptyButtonGradient}
-            >
+              start={{x: 0, y: 0}}
+              end={{x: 1, y: 0}}
+              style={styles.emptyButtonGradient}>
               <Feather name="user-plus" size={18} color="#FFFFFF" />
               <Text style={styles.emptyButtonText}>Add New Patient</Text>
             </LinearGradient>
@@ -448,9 +455,8 @@ export default function PatientsList() {
         <View style={styles.loadingContainer}>
           <Animated.View
             style={{
-              transform: [{ rotate: rotateInterpolation }]
-            }}
-          >
+              transform: [{rotate: rotateInterpolation}],
+            }}>
             <ActivityIndicator size="large" color="#FF4A93" />
           </Animated.View>
           <Text style={styles.loadingText}>Loading patients...</Text>
@@ -464,15 +470,15 @@ export default function PatientsList() {
       <StatusBar backgroundColor="#FFFFFF" barStyle="dark-content" />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : null}
-        style={styles.container}
-      >
+        style={styles.container}>
         {/* Header section */}
-        <Animated.View style={[
-          styles.headerContainer,
-          {
-            height: headerHeight,
-          }
-        ]}>
+        <Animated.View
+          style={[
+            styles.headerContainer,
+            {
+              height: headerHeight,
+            },
+          ]}>
           <View style={styles.headerContent}>
             <View style={styles.headerTop}>
               <Animated.Text
@@ -480,34 +486,33 @@ export default function PatientsList() {
                   styles.headerTitle,
                   {
                     transform: [
-                      { scale: titleScale },
-                      { translateY: titleTranslateY }
-                    ]
-                  }
-                ]}
-              >
+                      {scale: titleScale},
+                      {translateY: titleTranslateY},
+                    ],
+                  },
+                ]}>
                 Patient Records
               </Animated.Text>
             </View>
 
             <Animated.Text
-              style={[
-                styles.headerSubtitle,
-                { opacity: subtitleOpacity }
-              ]}
-            >
-              {patients.length} {patients.length === 1 ? 'Patient' : 'Patients'} Registered
+              style={[styles.headerSubtitle, {opacity: subtitleOpacity}]}>
+              {patients.length} {patients.length === 1 ? 'Patient' : 'Patients'}{' '}
+              Registered
             </Animated.Text>
           </View>
         </Animated.View>
 
         {/* Search section */}
         <View style={styles.searchContainer}>
-          <Animated.View style={[
-            styles.searchInputContainer,
-            { width: searchWidth }
-          ]}>
-            <Feather name="search" size={18} color="#94A3B8" style={{ marginRight: 10 }} />
+          <Animated.View
+            style={[styles.searchInputContainer, {width: searchWidth}]}>
+            <Feather
+              name="search"
+              size={18}
+              color="#94A3B8"
+              style={{marginRight: 10}}
+            />
             <TextInput
               style={styles.searchInput}
               placeholder="Search by name or contact..."
@@ -518,7 +523,9 @@ export default function PatientsList() {
               onBlur={() => handleSearchFocus(false)}
             />
             {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={clearSearch} style={styles.clearButton}>
+              <TouchableOpacity
+                onPress={clearSearch}
+                style={styles.clearButton}>
                 <Feather name="x" size={18} color="#94A3B8" />
               </TouchableOpacity>
             )}
@@ -531,8 +538,7 @@ export default function PatientsList() {
                 Keyboard.dismiss();
                 handleSearchFocus(false);
                 clearSearch();
-              }}
-            >
+              }}>
               <Text style={styles.cancelText}>Cancel</Text>
             </TouchableOpacity>
           )}
@@ -541,14 +547,14 @@ export default function PatientsList() {
         {/* Patient list */}
         <FlatList
           ref={listRef}
-          data={filteredPatients}
+          data={filteredPatients || []}
           renderItem={renderPatientCard}
-          keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+          keyExtractor={item => item.id?.toString() || Math.random().toString()}
           contentContainerStyle={styles.listContainer}
           showsVerticalScrollIndicator={false}
           onScroll={Animated.event(
-            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-            { useNativeDriver: false }
+            [{nativeEvent: {contentOffset: {y: scrollY}}}],
+            {useNativeDriver: false},
           )}
           scrollEventThrottle={16}
           refreshing={refreshing}
@@ -561,23 +567,18 @@ export default function PatientsList() {
           style={[
             styles.fabContainer,
             {
-              transform: [
-                { scale: fabAnim },
-              ]
-            }
-          ]}
-        >
+              transform: [{scale: fabAnim}],
+            },
+          ]}>
           <TouchableOpacity
             style={styles.fab}
             onPress={handleAddPress}
-            activeOpacity={0.9}
-          >
+            activeOpacity={0.9}>
             <LinearGradient
               colors={['#FF4A93', '#FF4A93']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.fabGradient}
-            >
+              start={{x: 0, y: 0}}
+              end={{x: 1, y: 1}}
+              style={styles.fabGradient}>
               <Feather name="user-plus" size={22} color="#FFFFFF" />
             </LinearGradient>
           </TouchableOpacity>
@@ -603,7 +604,7 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
     shadowColor: '#FF4A93',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: {width: 0, height: 4},
     shadowOpacity: 0.2,
     shadowRadius: 12,
     elevation: 8,
@@ -627,7 +628,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     letterSpacing: 0.5,
     textShadowColor: 'rgba(0, 0, 0, 0.1)',
-    textShadowOffset: { width: 0, height: 1 },
+    textShadowOffset: {width: 0, height: 1},
     textShadowRadius: 2,
   },
   headerSubtitle: {
@@ -663,7 +664,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     shadowColor: '#FF4A93',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 3,
@@ -703,7 +704,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 74, 147, 0.1)',
     shadowColor: '#FF4A93',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.05,
     shadowRadius: 6,
     elevation: 2,
@@ -736,7 +737,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     backgroundColor: '#FFFFFF',
     shadowColor: '#FF4A93',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.08,
     shadowRadius: 10,
     elevation: 3,
@@ -919,7 +920,7 @@ const styles = StyleSheet.create({
     right: 24,
     bottom: 32,
     shadowColor: '#FF4A93',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: {width: 0, height: 4},
     shadowOpacity: 0.4,
     shadowRadius: 12,
     elevation: 8,
