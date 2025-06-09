@@ -32,7 +32,7 @@ export default function App() {
       try {
         const token = await AsyncStorage.getItem('userToken');
         setUserToken(token);
-        // Wait 7 seconds before proceeding
+        // Wait 5 seconds before proceeding
         setTimeout(() => {
           setIsLoading(false);
         }, 5000);
@@ -41,12 +41,9 @@ export default function App() {
         setIsLoading(false); // Fallback in case of error
       }
     };
-    checkToken();
-  }, []);
 
     loadApp();
   }, []);
-
 
   if (isLoading) {
     return <SplashScreen />;

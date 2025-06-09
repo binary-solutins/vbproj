@@ -8,8 +8,8 @@ import NetInfo from '@react-native-community/netinfo';
 // Use actual IP for physical devices on same network
 //const API_BASE_URL = 'http://10.0.2.2:3000/api'; // For Android emulator
 // const API_BASE_URL = 'http://localhost:3000/api'; // For iOS simulator
-const API_BASE_URL = 'http://192.168.0.26:3000/api'; // For physical device
- //const API_BASE_URL = 'https://d3s-backend-dva9.onrender.com/api'; // For production
+//const API_BASE_URL = 'http://192.168.0.26:3000/api'; // For physical device
+ const API_BASE_URL = 'https://d3s-backend-dva9.onrender.com/api'; // For production
 const axiosInstance = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30000, // Increased timeout for large file uploads

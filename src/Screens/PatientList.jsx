@@ -201,7 +201,7 @@ export default function PatientsList() {
 
               await authAPI.delete(`/patients/${patientId}`);
 
-              const updatedPatients = patients.filter(p => p.id !== patientId);
+              const updatedPatients = patients?.filter(p => p.id !== patientId);
               setPatients(updatedPatients);
               setFilteredPatients(updatedPatients);
 
