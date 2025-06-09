@@ -2,6 +2,7 @@ import React, {useEffect, useState} from 'react';
 import {NavigationContainer} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {connectToDevTools} from 'react-devtools-core';
 
 // Import screens
 import LoginScreen from './src/Screens/LoginScreen';
@@ -41,8 +42,8 @@ export default function App() {
         setIsLoading(false); // Fallback in case of error
       }
     };
-
     loadApp();
+    // checkToken();
   }, []);
 
   if (isLoading) {
@@ -52,9 +53,8 @@ export default function App() {
   return (
     <NavigationContainer>
       <Stack.Navigator
-        initialRouteName={userToken ? "Home" : "Login"}
-        screenOptions={{ headerShown: false }}
-      >
+        initialRouteName={userToken ? 'Home' : 'Login'}
+        screenOptions={{headerShown: false}}>
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="signup" component={SignupScreen} />
         <Stack.Screen name="Home" component={HomeScreen} />

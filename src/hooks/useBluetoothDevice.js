@@ -1,250 +1,233 @@
-import { useState, useEffect } from 'react';
-import { Alert, Platform, PermissionsAndroid } from 'react-native';
+import {useState, useEffect, useCallback} from 'react';
+import {Platform, PermissionsAndroid, Alert} from 'react-native';
 import RNBluetoothClassic from 'react-native-bluetooth-classic';
 
 // Constants
-const DEVICE_NAME = /^"BR-SCAN-\d+"$/;
+const DEVICE_NAME = /^BR-SCAN-\d+$/;
 const DEVICE_PASSWORD = '1234';
 
-
 const useBluetoothClassicDevice = () => {
-  const [bluetoothEnabled, setBluetoothEnabled] = useState(false);
   const [bluetoothConnected, setBluetoothConnected] = useState(false);
-  const [bluetoothDevice, setBluetoothDevice] = useState(null);
   const [scanningBluetooth, setScanningBluetooth] = useState(false);
-  const [pairedDevices, setPairedDevices] = useState([]);
+  const [bluetoothDevice, setBluetoothDevice] = useState(null);
+  const [permissionsGranted, setPermissionsGranted] = useState(false);
+  const [permissionChecked, setPermissionChecked] = useState(false);
 
-  useEffect(() => {
-    // Initialize Bluetooth
-    const initBluetooth = async () => {
-      try {
-        await checkBluetoothPermissions();
-        
-        // Check if Bluetooth is enabled
-        const isEnabled = await RNBluetoothClassic.isBluetoothEnabled();
-        setBluetoothEnabled(isEnabled);
-        
-        if (isEnabled) {
-          // Get list of bonded/paired devices
-          const devices = await RNBluetoothClassic.getBondedDevices();
-          setPairedDevices(devices);
-          
-          // Check if our device is already paired
-          const targetDevice = devices.find(device => /^BR-SCAN-\d+$/i.test(device.name));
-          if (targetDevice) {
-            setBluetoothDevice(targetDevice);
-          }
-        }
-        
-        // Set up connection status listener
-        const disconnectSubscription = RNBluetoothClassic.onDeviceDisconnected(
-          (event) => {
-            console.log('Bluetooth connection was lost', event);
-            setBluetoothConnected(false);
-            setBluetoothDevice(prev => {
-              // Clean up subscription if it exists
-              if (prev && prev._dataSubscription) {
-                prev._dataSubscription.remove();
-              }
-              return null;
-            });
-          }
-        );
-        
-        return () => {
-          // Clean up subscription
-          disconnectSubscription.remove();
-        };
-      } catch (error) {
-        console.error('Error initializing Bluetooth:', error);
-      }
-    };
-    
-    initBluetooth();
-    
-    // Cleanup when component unmounts
-    return () => {
-      disconnectFromDevice();
-    };
-  }, []);
+  const checkBluetoothPermissions = useCallback(async () => {
+    if (permissionChecked && permissionsGranted) {
+      return true;
+    }
 
-  const checkBluetoothPermissions = async () => {
+    if (permissionChecked && !permissionsGranted) {
+      return false;
+    }
+
     if (Platform.OS === 'android') {
       try {
         const permissions = [
           PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-          // For Android 12+ (API level 31+)
-          ...(Platform.Version >= 31 ? [
-            PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
-            PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN
-          ] : [])
+          ...(Platform.Version >= 31
+            ? [
+                PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+                PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+              ]
+            : []),
         ];
-        
+
+        await new Promise(resolve => setTimeout(resolve, 100));
+
         const granted = await PermissionsAndroid.requestMultiple(permissions);
-        
+
         const allGranted = Object.values(granted).every(
-          status => status === PermissionsAndroid.RESULTS.GRANTED
+          status => status === PermissionsAndroid.RESULTS.GRANTED,
         );
-        
+
+        setPermissionChecked(true);
+        setPermissionsGranted(allGranted);
+
         if (!allGranted) {
           Alert.alert(
             'Bluetooth Permissions Required',
             'Bluetooth permissions are required to connect to the device.',
-            [{ text: 'OK' }]
+            [{text: 'OK'}],
           );
+          return false;
+        } else {
+          return true;
         }
       } catch (error) {
         console.error('Error requesting Bluetooth permissions:', error);
+        setPermissionChecked(true);
+        setPermissionsGranted(false);
+        return false;
       }
-    }
-  };
-
-  const enableBluetooth = async () => {
-    try {
-      // This will prompt the user to enable Bluetooth if it's not enabled
-      await RNBluetoothClassic.requestBluetoothEnabled();
-      setBluetoothEnabled(true);
-      
-      // Get paired devices after enabling
-      const devices = await RNBluetoothClassic.getBondedDevices();
-      setPairedDevices(devices);
-      
+    } else {
+      setPermissionChecked(true);
+      setPermissionsGranted(true);
       return true;
+    }
+  }, [permissionChecked, permissionsGranted]);
+
+  const enableBluetooth = useCallback(async () => {
+    try {
+      const enabled = await RNBluetoothClassic.requestBluetoothEnabled();
+      return enabled;
     } catch (error) {
       console.error('Error enabling Bluetooth:', error);
-      Alert.alert('Bluetooth Error', 'Failed to enable Bluetooth');
       return false;
     }
-  };
+  }, []);
 
   const connectToBluetoothDevice = async () => {
     try {
-      // Check if Bluetooth is enabled
-      if (!bluetoothEnabled) {
-        const enabled = await enableBluetooth();
-        if (!enabled) return;
+      const permissionsGranted = await checkBluetoothPermissions();
+      if (!permissionsGranted) {
+        Alert.alert(
+          'Permission Required',
+          'Bluetooth permissions are required to connect to the device.',
+          [{text: 'OK'}],
+        );
+        return null;
       }
-      
+
+      const isEnabled = await RNBluetoothClassic.isBluetoothEnabled();
+      if (!isEnabled) {
+        const enabled = await enableBluetooth();
+        if (!enabled) {
+          return null;
+        }
+      }
+
       setScanningBluetooth(true);
-      
-      // Check if the device is already paired
+
       let devices = await RNBluetoothClassic.getBondedDevices();
-      setPairedDevices(devices);
       let targetDevice = devices.find(device => DEVICE_NAME.test(device.name));
 
       if (!targetDevice) {
         Alert.alert(
           'Device Not Paired',
           `Please pair a BR-SCAN device in your phone's Bluetooth settings (name should be like BR-SCAN-###), then try connecting again.`,
-          [{ text: 'OK' }]
+          [{text: 'OK'}],
         );
         setScanningBluetooth(false);
-        return;
+        return null;
       }
-      
-      console.log('Attempting to connect to:', targetDevice.id);
-      
-      // Disconnect any existing connection first
+
       if (bluetoothDevice && bluetoothConnected) {
         await disconnectFromDevice();
       }
-      
-      // Connect to the device
-      const connectedDevice = await RNBluetoothClassic.connectToDevice(targetDevice.id, {
-        connectorType: 'rfcomm',
-        delimiter: '\r',
-        charset: 'utf-8'
-      });
-      
-      console.log('Connection established:', connectedDevice.isConnected());
-      
+
+      const connectedDevice = await RNBluetoothClassic.connectToDevice(
+        targetDevice.id,
+        {
+          connectorType: 'rfcomm',
+          delimiter: '\r',
+          charset: 'utf-8',
+        },
+      );
+
       if (connectedDevice.isConnected()) {
-        // Wait a moment for the connection to stabilize
         await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Send password to authenticate if needed
-        const writeResult = await connectedDevice.write(DEVICE_PASSWORD);
-        console.log('Password sent result:', writeResult);
-        
+
+        await connectedDevice.write(DEVICE_PASSWORD);
+
         setBluetoothDevice(connectedDevice);
         setBluetoothConnected(true);
-        
-        Alert.alert('Success', `Device Successfully Connected to ${targetDevice.name}`);
+
+        Alert.alert(
+          'Success',
+          `Device Successfully Connected to ${targetDevice.name}`,
+        );
         return connectedDevice;
       } else {
         throw new Error('Failed to connect');
       }
     } catch (error) {
       console.error('Bluetooth connection error:', error);
-      Alert.alert('Connection Failed', error.message || 'Failed to connect to the device');
+      Alert.alert(
+        'Connection Failed',
+        error.message || 'Failed to connect to the device',
+      );
       return null;
     } finally {
       setScanningBluetooth(false);
     }
   };
 
-  const disconnectFromDevice = async () => {
-    try {
-      if (bluetoothDevice) {
-        // Clean up any subscriptions
-        if (bluetoothDevice._dataSubscription) {
-          bluetoothDevice._dataSubscription.remove();
-        }
-        
-        if (bluetoothDevice._screenDataSubscription) {
-          bluetoothDevice._screenDataSubscription.remove();  
-        }
-        
-        // Only attempt to disconnect if it's connected
-        if (bluetoothConnected) {
-          await bluetoothDevice.disconnect();
-          console.log('Device disconnected successfully');
-        }
-        
-        setBluetoothConnected(false);
-        setBluetoothDevice(null);
+  const disconnectFromDevice = useCallback(async () => {
+    if (bluetoothDevice) {
+      if (bluetoothDevice._dataSubscription) {
+        bluetoothDevice._dataSubscription.remove();
       }
-    } catch (error) {
-      console.error('Error disconnecting:', error);
-      // Even if there's an error, we want to clean up our state
+
+      if (bluetoothDevice._screenDataSubscription) {
+        bluetoothDevice._screenDataSubscription.remove();
+      }
+
+      if (bluetoothConnected) {
+        await bluetoothDevice.disconnect();
+      }
+
       setBluetoothConnected(false);
       setBluetoothDevice(null);
     }
-  };
+  }, [bluetoothDevice, bluetoothConnected]);
 
-  const scanForDevices = async () => {
+  const initBluetooth = useCallback(async () => {
     try {
-      setScanningBluetooth(true);
-      
-      // Check if Bluetooth is enabled first
-      if (!bluetoothEnabled) {
-        const enabled = await enableBluetooth();
-        if (!enabled) return [];
+      const permissionsGranted = await checkBluetoothPermissions();
+
+      if (!permissionsGranted) {
+        return;
       }
-      
-      const devices = await RNBluetoothClassic.getBondedDevices();
-      console.log('Paired devices:', devices);
-      setPairedDevices(devices);
-      
-      return devices;
+
+      const isEnabled = await RNBluetoothClassic.isBluetoothEnabled();
+
+      if (isEnabled) {
+        const devices = await RNBluetoothClassic.getBondedDevices();
+
+        const targetDevice = devices.find(device =>
+          DEVICE_NAME.test(device.name),
+        );
+        if (targetDevice) {
+          setBluetoothDevice(targetDevice);
+        }
+      }
+
+      const disconnectSubscription = RNBluetoothClassic.onDeviceDisconnected(
+        event => {
+          setBluetoothConnected(false);
+          setBluetoothDevice(prev => {
+            if (prev && prev._dataSubscription) {
+              prev._dataSubscription.remove();
+            }
+            return null;
+          });
+        },
+      );
     } catch (error) {
-      console.error('Error scanning for Bluetooth devices:', error);
-      return [];
-    } finally {
-      setScanningBluetooth(false);
+      console.error('Error initializing Bluetooth:', error);
+      Alert.alert(
+        'Bluetooth Error',
+        'Failed to initialize Bluetooth: ' + error.message,
+      );
     }
-  };
+  }, [checkBluetoothPermissions]);
+
+  useEffect(() => {
+    initBluetooth();
+
+    return () => {
+      disconnectFromDevice();
+    };
+  }, [disconnectFromDevice, initBluetooth]);
 
   return {
-    bluetoothEnabled,
     bluetoothConnected,
     scanningBluetooth,
     bluetoothDevice,
-    pairedDevices,
     connectToBluetoothDevice,
     disconnectFromDevice,
-    enableBluetooth,
-    scanForDevices
   };
 };
 
