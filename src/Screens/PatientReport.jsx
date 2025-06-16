@@ -413,7 +413,7 @@ export default function PatientReports() {
     try {
       setDownloadingId(report.id);
       console.log('Starting download for report:', report.id);
-
+  
       // Request permission for Android
       const hasPermission = await requestStoragePermission();
       if (!hasPermission) {
@@ -423,19 +423,19 @@ export default function PatientReports() {
         );
         return;
       }
-
+  
       const {config, fs} = RNFetchBlob;
       let downloadDir = fs.dirs.DownloadDir;
-
+  
       if (Platform.OS === 'ios') {
         downloadDir = fs.dirs.DocumentDir;
       }
-
+  
       const fileName = `report_${report.id}_${Date.now()}.pdf`;
       const filePath = `${downloadDir}/${fileName}`;
-
+  
       console.log('Downloading to:', filePath);
-
+  
       // Check if file already exists and create unique name if needed
       let finalFilePath = filePath;
       let counter = 1;
@@ -444,13 +444,24 @@ export default function PatientReports() {
         finalFilePath = `${downloadDir}/${nameWithoutExt}_${counter}.pdf`;
         counter++;
       }
-
-      // Use direct download instead of Android Download Manager to prevent app closing
+  
+      // Updated download configuration with notification for Android
       const downloadConfig = {
         fileCache: false,
         path: finalFilePath,
+        // Add notification configuration for Android (without useDownloadManager to prevent crashes)
+        ...(Platform.OS === 'android' && {
+          addAndroidDownloads: {
+            useDownloadManager: false, // Don't use download manager to prevent app crash
+            notification: true, // Show notification
+            title: `${report.title || 'Medical Report'}`, // Notification title
+            description: 'Medical report downloaded successfully', // Notification description
+            mime: 'application/pdf',
+            mediaScannable: true, // Make file visible in file managers
+          },
+        }),
       };
-
+  
       const response = await config(downloadConfig).fetch(
         'GET',
         report.fileUrl,
@@ -459,15 +470,15 @@ export default function PatientReports() {
           Authorization: await getAuthHeader(),
         },
       );
-
+  
       console.log('Download completed:', response.path());
-
+  
       // Verify file was downloaded successfully
       const fileExists = await fs.exists(response.path());
       if (!fileExists) {
         throw new Error('File download failed - file not found after download');
       }
-
+  
       if (Platform.OS === 'ios') {
         // For iOS, open the document
         try {
@@ -480,15 +491,16 @@ export default function PatientReports() {
           );
         }
       } else {
+        // For Android, the notification will show automatically via download manager
         Alert.alert(
           'Download Successful!',
-          `Report downloaded successfully to Downloads folder\nFile: ${fileName}`,
+          `Report downloaded successfully to Downloads folder\nFile: ${fileName.replace(`_${Date.now()}`, '')}`,
         );
       }
     } catch (error) {
       console.error('Error downloading report:', error);
       let errorMessage = 'Failed to download report. Please try again.';
-
+  
       if (error.message?.includes('Network')) {
         errorMessage = 'Network error. Please check your internet connection.';
       } else if (error.message?.includes('permission')) {
@@ -496,13 +508,12 @@ export default function PatientReports() {
       } else if (error.message?.includes('trust manager')) {
         errorMessage = 'Download configuration error. Please try again.';
       }
-
+  
       Alert.alert('Download Error', errorMessage);
     } finally {
       setDownloadingId(null);
     }
   };
-
   const handleViewPdf = async report => {
     try {
       setPdfLoading(true);
