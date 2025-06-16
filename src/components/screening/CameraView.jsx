@@ -15,10 +15,10 @@ import {
 import { RNCamera } from 'react-native-camera';
 import Feather from 'react-native-vector-icons/Feather';
 import ImageCropPicker from 'react-native-image-crop-picker';
-import { useSafeAreaInsets } from 'react-native-safe-area-context'; // Add this import
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const SCREEN_HEIGHT = Dimensions.get('window').height;
+const SCREEN_HEIGHT = Dimensions.get('window').height + 40;
 
 // Define step descriptions for the breast screening process
 const STEP_DESCRIPTIONS = [
@@ -35,7 +35,7 @@ const CameraView = forwardRef(({ currentStep, processing, onCapture, onClose }, 
   const camera = useRef(null);
   const [hasPermission, setHasPermission] = useState(null);
   const [countdown, setCountdown] = useState(null);
-  const insets = useSafeAreaInsets(); // Get safe area insets
+  const insets = useSafeAreaInsets();
   
   // State variables for camera features
   const [showControls, setShowControls] = useState(false);
@@ -65,16 +65,14 @@ const CameraView = forwardRef(({ currentStep, processing, onCapture, onClose }, 
   }, [countdown]);
 
   const startCountdown = () => {
-    setShowControls(false); // Hide controls during countdown
+    setShowControls(false);
     setCountdown(3);
   };
 
-  // Toggle camera controls visibility
   const toggleControls = () => {
     setShowControls(!showControls);
   };
 
-  // Cycle through flash modes
   const cycleFlashMode = () => {
     switch (flashMode) {
       case RNCamera.Constants.FlashMode.off:
@@ -89,17 +87,14 @@ const CameraView = forwardRef(({ currentStep, processing, onCapture, onClose }, 
     }
   };
 
-  // Handle manual focus
   const handleFocus = (event) => {
     const { locationX, locationY } = event.nativeEvent;
     
-    // Set focus coordinates for UI indicator only
     setFocusCoordinates({
       x: locationX,
       y: locationY
     });
     
-    // Hide focus indicator after 3 seconds
     setTimeout(() => {
       setFocusCoordinates(null);
     }, 3000);
@@ -118,35 +113,29 @@ const CameraView = forwardRef(({ currentStep, processing, onCapture, onClose }, 
       
       const data = await camera.current.takePictureAsync(options);
       
-      // Save captured image for crop modal
       setCapturedImage(data);
-      
-      // Show crop modal for user to edit the image
       setShowCropModal(true);
     } catch (error) {
       console.error('Error capturing image:', error);
     }
   };
   
-  // Handle cropping the captured image
   const handleCropImage = async () => {
     try {
       const cropResult = await ImageCropPicker.openCropper({
         path: capturedImage.uri,
-        width: 1000,  // width after cropping
-        height: 1000, // height after cropping
+        width: 1000,
+        height: 1000,
         cropperCircleOverlay: false,
         freeStyleCropEnabled: true,
-        includeBase64: true, // Include base64 in result
+        includeBase64: true,
       });
       
-      // Convert cropped image to the same format as original camera capture
       const formattedCroppedImage = {
         uri: cropResult.path,
         width: cropResult.width,
         height: cropResult.height,
         base64: cropResult.data,
-        // Add other fields to match the format expected by the parent component
         type: 'image/jpeg'
       };
       
@@ -156,20 +145,16 @@ const CameraView = forwardRef(({ currentStep, processing, onCapture, onClose }, 
     }
   };
   
-  // Retake the photo (close modal without saving)
   const retakePhoto = () => {
     setCapturedImage(null);
     setCroppedImage(null);
     setShowCropModal(false);
   };
   
-  // Close modal and continue with app flow
   const handleModalClose = () => {
-    // Send the cropped image (if available) or original image back to parent component
     const finalImage = croppedImage || capturedImage;
     onCapture(finalImage);
     
-    // Reset state
     setShowCropModal(false);
     setCapturedImage(null);
     setCroppedImage(null);
@@ -192,7 +177,6 @@ const CameraView = forwardRef(({ currentStep, processing, onCapture, onClose }, 
     <View style={styles.container}>
       <StatusBar hidden translucent backgroundColor="transparent" />
       
-      {/* Camera View - Now fills entire screen */}
       <RNCamera
         ref={camera}
         style={styles.camera}
@@ -208,9 +192,8 @@ const CameraView = forwardRef(({ currentStep, processing, onCapture, onClose }, 
         }
         onTap={handleFocus}
       >
-        {/* Overlay without SafeAreaView wrapper to allow full screen usage */}
         <View style={styles.overlay}>
-          {/* Header with pink background - positioned absolutely */}
+          {/* Header */}
           <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
             <Text style={styles.stepText}>Step {currentStep + 1} of 6</Text>
             <TouchableOpacity style={styles.closeButton} onPress={onClose}>
@@ -250,10 +233,9 @@ const CameraView = forwardRef(({ currentStep, processing, onCapture, onClose }, 
             <Text style={styles.touchToFocusText}>Tap anywhere to focus</Text>
           </TouchableOpacity>
           
-          {/* Camera controls panel - toggleable */}
+          {/* Camera controls panel */}
           {showControls && (
             <View style={styles.controlsPanel}>
-              {/* Flash mode control */}
               <View style={styles.controlGroup}>
                 <TouchableOpacity 
                   style={styles.controlButton}
@@ -269,7 +251,7 @@ const CameraView = forwardRef(({ currentStep, processing, onCapture, onClose }, 
             </View>
           )}
           
-          {/* Bottom control panel - positioned absolutely */}
+          {/* Bottom control panel */}
           <View style={[styles.bottomPanel, { paddingBottom: insets.bottom + 20 }]}>
             {processing ? (
               <View style={styles.processingContainer}>
@@ -310,7 +292,7 @@ const CameraView = forwardRef(({ currentStep, processing, onCapture, onClose }, 
             )}
           </View>
           
-          {/* Step progress indicators - positioned absolutely */}
+          {/* Step progress indicators */}
           <View style={[styles.stepIndicatorContainer, { bottom: insets.bottom + 100 }]}>
             {STEP_DESCRIPTIONS.map((_, index) => (
               <View 
@@ -339,7 +321,6 @@ const CameraView = forwardRef(({ currentStep, processing, onCapture, onClose }, 
             </TouchableOpacity>
           </View>
           
-          {/* Image Preview */}
           <View style={styles.imagePreviewContainer}>
             <Image 
               source={{ uri: croppedImage ? croppedImage.uri : capturedImage?.uri }}
@@ -348,7 +329,6 @@ const CameraView = forwardRef(({ currentStep, processing, onCapture, onClose }, 
             />
           </View>
           
-          {/* Action Buttons */}
           <View style={styles.modalActionButtons}>
             <TouchableOpacity 
               style={styles.actionButton}
@@ -377,13 +357,19 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     left: 0,
+    right: 0,
+    bottom: 0,
     width: SCREEN_WIDTH,
     height: SCREEN_HEIGHT,
     backgroundColor: 'black',
-    zIndex: 10,
+    zIndex: 999, // Increased z-index to ensure it's on top
   },
   camera: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     width: '100%',
     height: '100%',
   },
@@ -404,7 +390,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 20,
-    backgroundColor: 'rgba(219, 39, 119, 0.8)', // Pink theme with opacity
+    backgroundColor: 'rgba(219, 39, 119, 0.8)',
     zIndex: 1,
   },
   stepText: {
@@ -422,7 +408,7 @@ const styles = StyleSheet.create({
   },
   instructionPanel: {
     position: 'absolute',
-    top: 120, // Adjusted to account for header
+    top: 120,
     left: 20,
     right: 20,
     backgroundColor: 'rgba(255, 255, 255, 0.9)',
@@ -551,7 +537,7 @@ const styles = StyleSheet.create({
     width: 62,
     height: 62,
     borderRadius: 31,
-    backgroundColor: '#DB2777', // Pink theme
+    backgroundColor: '#DB2777',
   },
   timerButton: {
     width: 50,
@@ -605,7 +591,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 5,
   },
   activeStepIndicator: {
-    backgroundColor: '#DB2777', // Pink theme
+    backgroundColor: '#DB2777',
     width: 12,
     height: 12,
     borderRadius: 6,

@@ -1,6 +1,13 @@
-import React, {useState, useEffect, useRef} from 'react';
-import {View, ScrollView, Alert, StatusBar, StyleSheet} from 'react-native';
-import {useNavigation} from '@react-navigation/native';
+import React, {useState, useEffect, useRef, useCallback} from 'react';
+import {
+  View,
+  ScrollView,
+  Alert,
+  StatusBar,
+  StyleSheet,
+  AppState,
+} from 'react-native';
+import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {authAPI} from '../api/axios';
 import ScreeningHeader from '../components/screening/ScreeningHeader';
@@ -26,15 +33,24 @@ const BreastScreeningScreen = () => {
   const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [reportGenerated, setReportGenerated] = useState(false);
+  const [appState, setAppState] = useState(AppState.currentState);
 
   // Reference to camera component to trigger capture
   const cameraRef = useRef(null);
+  const captureTimeoutRef = useRef(null);
+  const isCapturingRef = useRef(false);
 
   const {
+    bluetoothEnabled,
     bluetoothConnected,
     scanningBluetooth,
     bluetoothDevice,
+    devicePaired,
+    permissionsGranted,
+    pairedDevices,
     connectToBluetoothDevice,
+    refreshPairedDevices,
+    scanForDevices,
   } = useBluetoothClassicDevice();
 
   const {
@@ -58,11 +74,46 @@ const BreastScreeningScreen = () => {
     generateAndUploadReport,
   } = useReportGeneration(capturedImages, selectedDoctor, selectedPatient);
 
+  // Handle app state changes to refresh paired devices
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState) => {
+      if (appState.match(/inactive|background/) && nextAppState === 'active') {
+        // App came to foreground, refresh paired devices
+        if (permissionsGranted) {
+          setTimeout(() => {
+            scanForDevices();
+          }, 1000);
+        }
+      }
+      setAppState(nextAppState);
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+    return () => {
+      if (subscription?.remove) {
+        subscription.remove();
+      }
+    };
+  }, [appState, permissionsGranted, scanForDevices]);
+
+  // Refresh paired devices when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      if (permissionsGranted) {
+        scanForDevices();
+      }
+    }, [permissionsGranted, scanForDevices])
+  );
+
   useEffect(() => {
     loadData();
 
     return () => {
-      // Cleanup happens in the useBluetoothClassicDevice hook
+      // Cleanup timeout if component unmounts
+      if (captureTimeoutRef.current) {
+        clearTimeout(captureTimeoutRef.current);
+      }
     };
   }, []);
 
@@ -105,72 +156,158 @@ const BreastScreeningScreen = () => {
     generateAndUploadReport,
   ]);
 
-  // Set up data listener for the Bluetooth device capture button
-  useEffect(() => {
-    // Handler for device capture button press
-    const handleDeviceCaptureButton = () => {
-      // First, check if we're in camera mode and if the camera ref is valid
-      if (cameraVisible && cameraRef.current) {
+  // Enhanced capture button handler - matches working version logic
+  const handleDeviceCaptureButton = useCallback(() => {
+    console.log('🚀 === DEVICE CAPTURE BUTTON PRESSED ===');
+    console.log('🔍 Camera visible:', cameraVisible);
+    console.log('🔍 Processing capture:', processingCapture);
+    console.log('🔍 Camera ref available:', !!cameraRef.current);
+    console.log('🔍 Is capturing:', isCapturingRef.current);
+
+    // Prevent multiple rapid captures
+    if (isCapturingRef.current || processingCapture) {
+      console.log('❌ Capture blocked - already in progress');
+      return;
+    }
+
+    // Check if we're in camera mode
+    if (!cameraVisible) {
+      console.log('❌ Capture blocked - camera not visible');
+      return;
+    }
+
+    // Check camera ref
+    if (!cameraRef.current) {
+      console.log('❌ Capture blocked - camera ref not available');
+      return;
+    }
+
+    try {
+      isCapturingRef.current = true;
+      console.log('📸 Triggering camera capture...');
+      
+      // Use the working version's approach - directly call takePicture
+      const cameraInstance = cameraRef.current;
+      
+      if (typeof cameraInstance.takePicture === 'function') {
+        console.log('📸 Using takePicture method');
+        cameraInstance.takePicture();
+      } else {
+        console.log('📸 Fallback: calling handleCapture directly');
+        handleCapture();
+      }
+
+      console.log('🟢 Capture method called successfully');
+
+    } catch (error) {
+      console.error('❌ Error in camera capture:', error);
+    } finally {
+      // Reset capturing flag after delay
+      setTimeout(() => {
+        isCapturingRef.current = false;
+        console.log('🔄 Capture flag reset');
+      }, 2000);
+    }
+  }, [cameraVisible, processingCapture, handleCapture]);
+
+  // Setup Bluetooth button listener - simplified version that matches working code
+  const setupBluetoothButtonListener = useCallback(() => {
+    console.log('🔵 Setting up Bluetooth data listener...');
+    
+    if (!bluetoothDevice || !bluetoothConnected) {
+      console.log('❌ Device not ready for data listener');
+      return;
+    }
+
+    // Clean up any existing subscription first
+    if (bluetoothDevice._screenDataSubscription) {
+      console.log('🔵 Removing existing data subscription...');
+      bluetoothDevice._screenDataSubscription.remove();
+      bluetoothDevice._screenDataSubscription = null;
+    }
+
+    try {
+      console.log('🔵 Creating new data subscription...');
+      
+      const dataSubscription = bluetoothDevice.onDataReceived(data => {
         try {
-          cameraRef.current.takePicture();
-        } catch (error) {
-          console.error('Error calling takePicture:', error);
-        }
-      }
-    };
+          console.log('📡 Raw Bluetooth data received:', data);
+          
+          // Handle different data formats - simplified approach from working version
+          let dataStr = '';
+          if (data) {
+            if (typeof data === 'string') {
+              dataStr = data;
+            } else if (data.data) {
+              dataStr = data.data.toString ? data.data.toString() : data.data;
+            } else {
+              dataStr = data.toString ? data.toString() : '';
+            }
+          }
 
-    const setupBluetoothButtonListener = () => {
-      if (!bluetoothDevice) {
-        return;
-      }
+          console.log('📡 Processed data string:', JSON.stringify(dataStr));
+          
+          // Clean the data
+          const cleanData = dataStr.trim();
+          
+          if (cleanData.length === 0) {
+            console.log('⚠️ Empty data received, ignoring...');
+            return;
+          }
 
-      // Clean up any existing subscription first
-      if (bluetoothDevice._screenDataSubscription) {
-        bluetoothDevice._screenDataSubscription.remove();
-      }
+          // Use the working version's trigger detection logic
+          const shouldCapture = 
+            cleanData.includes('CAPTURE') || 
+            cleanData === '1' || 
+            cleanData.trim() !== '';
 
-      // Set up new data subscription
-      try {
-        const dataSubscription = bluetoothDevice.onDataReceived(data => {
-          // Check if the data indicates a button press
-          // The exact format depends on your device's output
-          const dataStr = data.data ? data.data.toString() : '';
+          console.log('🔍 Should capture:', shouldCapture, 'Data:', cleanData);
 
-          if (
-            dataStr.includes('CAPTURE') ||
-            dataStr === '1' ||
-            dataStr.trim() !== ''
-          ) {
-            // Use setTimeout to ensure this runs on the next JS event loop cycle
-            // This helps avoid potential race conditions with component rendering
+          if (shouldCapture) {
+            console.log('🟢 Capture trigger detected:', cleanData);
+            
+            // Use setTimeout like in the working version
             setTimeout(() => {
               handleDeviceCaptureButton();
             }, 0);
           }
-        });
+        } catch (error) {
+          console.error('❌ Error processing Bluetooth data:', error);
+        }
+      });
 
-        // Store subscription for cleanup
-        bluetoothDevice._screenDataSubscription = dataSubscription;
-      } catch (error) {
-        console.error('Error setting up data subscription:', error);
-      }
-    };
+      // Store subscription for cleanup
+      bluetoothDevice._screenDataSubscription = dataSubscription;
+      console.log('🟢 Bluetooth data listener setup complete');
 
-    if (bluetoothDevice && bluetoothConnected) {
-      try {
-        setupBluetoothButtonListener();
-      } catch (error) {
-        console.error('Error setting up Bluetooth button listener:', error);
-      }
+    } catch (error) {
+      console.error('❌ Error setting up Bluetooth data subscription:', error);
     }
+  }, [bluetoothDevice, bluetoothConnected, handleDeviceCaptureButton]);
 
-    // Cleanup function
-    return () => {
-      if (bluetoothDevice && bluetoothDevice._screenDataSubscription) {
-        bluetoothDevice._screenDataSubscription.remove();
-      }
-    };
-  }, [bluetoothDevice, bluetoothConnected, cameraVisible, processingCapture]);
+  // Set up data listener for the Bluetooth device capture button - matches working version
+  useEffect(() => {
+    console.log('🔵 Bluetooth listener effect triggered...');
+    console.log('🔵 Bluetooth connected:', bluetoothConnected);
+    console.log('🔵 Bluetooth device available:', !!bluetoothDevice);
+    
+    if (bluetoothDevice && bluetoothConnected) {
+      // Add a longer delay like in working version for device stability
+      const timeoutId = setTimeout(() => {
+        console.log('🔵 Setting up Bluetooth listener after delay...');
+        setupBluetoothButtonListener();
+      }, 2000);
+
+      return () => {
+        clearTimeout(timeoutId);
+        if (bluetoothDevice && bluetoothDevice._screenDataSubscription) {
+          console.log('🔵 Cleaning up Bluetooth data subscription...');
+          bluetoothDevice._screenDataSubscription.remove();
+          bluetoothDevice._screenDataSubscription = null;
+        }
+      };
+    }
+  }, [bluetoothDevice, bluetoothConnected, setupBluetoothButtonListener]);
 
   const loadData = async () => {
     try {
@@ -180,23 +317,33 @@ const BreastScreeningScreen = () => {
 
       if (!userData || !userData.id) {
         Alert.alert('Error', 'User data not found. Please log in again.');
-        // Navigate to login if needed
         return;
       }
 
-      // Adjust these endpoints to match your actual API routes
-      const doctorsResponse = await authAPI.get(
-        `/doctors/hospital/${userData.id}`,
-      );
-      setDoctors(doctorsResponse?.data?.doctors || []);
+      // Load doctors and patients with error handling
+      try {
+        const doctorsResponse = await authAPI.get(
+          `/doctors/hospital/${userData.id}`,
+        );
+        setDoctors(doctorsResponse?.data?.doctors || []);
+      } catch (error) {
+        console.error('Error loading doctors:', error);
+        setDoctors([]);
+      }
 
-      const patientsResponse = await authAPI.get(
-        `/patients/hospital/${userData.id}`,
-      );
-      setPatients(patientsResponse?.data || []);
+      try {
+        const patientsResponse = await authAPI.get(
+          `/patients/hospital/${userData.id}`,
+        );
+        setPatients(patientsResponse?.data || []);
+      } catch (error) {
+        console.error('Error loading patients:', error);
+        setPatients([]);
+      }
+
     } catch (error) {
       console.error('Error loading data:', error);
-      Alert.alert('Error', 'Failed to load doctors and patients data');
+      Alert.alert('Error', 'Failed to load data. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -223,6 +370,23 @@ const BreastScreeningScreen = () => {
     resetCapture();
     setReportGenerated(false);
     setUploadStatus('idle');
+    isCapturingRef.current = false;
+    
+    if (captureTimeoutRef.current) {
+      clearTimeout(captureTimeoutRef.current);
+    }
+  };
+
+  const handleConnectBluetooth = async () => {
+    try {
+      await connectToBluetoothDevice();
+    } catch (error) {
+      console.error('Connection error:', error);
+      Alert.alert(
+        'Connection Error',
+        'Failed to connect to Bluetooth device. Please try again.',
+      );
+    }
   };
 
   return (
@@ -254,7 +418,9 @@ const BreastScreeningScreen = () => {
         <DeviceConnectionSection
           connected={bluetoothConnected}
           scanning={scanningBluetooth}
-          onConnect={connectToBluetoothDevice}
+          paired={devicePaired}
+          onConnect={handleConnectBluetooth}
+          onRefresh={scanForDevices}
         />
 
         <ActionButtons
