@@ -393,7 +393,6 @@ export default function PatientReports() {
         type: 'application/pdf',
         failOnCancel: false,
         showAppsToView: true,
-
       };
 
       try {
@@ -446,24 +445,11 @@ export default function PatientReports() {
         counter++;
       }
 
-let downloadConfig = {
-  fileCache: true,
-  trusty: true,
-};
-
-if (Platform.OS === 'android') {
-  downloadConfig.addAndroidDownloads = {
-    useDownloadManager: true,
-    notification: true,
-    path: finalFilePath,
-    description: 'Downloading medical report',
-    mime: 'application/pdf',
-    mediaScannable: true,
-  };
-} else {
-  downloadConfig.path = finalFilePath;
-}
-
+      // Use direct download instead of Android Download Manager to prevent app closing
+      const downloadConfig = {
+        fileCache: false,
+        path: finalFilePath,
+      };
 
       const response = await config(downloadConfig).fetch(
         'GET',
@@ -495,8 +481,8 @@ if (Platform.OS === 'android') {
         }
       } else {
         Alert.alert(
-          'Success',
-          `Report downloaded successfully to Downloads folder`,
+          'Download Successful!',
+          `Report downloaded successfully to Downloads folder\nFile: ${fileName}`,
         );
       }
     } catch (error) {
@@ -507,6 +493,8 @@ if (Platform.OS === 'android') {
         errorMessage = 'Network error. Please check your internet connection.';
       } else if (error.message?.includes('permission')) {
         errorMessage = 'Permission denied. Please allow storage access.';
+      } else if (error.message?.includes('trust manager')) {
+        errorMessage = 'Download configuration error. Please try again.';
       }
 
       Alert.alert('Download Error', errorMessage);
