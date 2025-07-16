@@ -10,7 +10,7 @@ import NetInfo from '@react-native-community/netinfo';
 // const API_BASE_URL = 'http://localhost:3000/api'; // For iOS simulator
 
 //const API_BASE_URL = 'http://192.168.0.26:3000/api'; // For physical device
- const API_BASE_URL = 'https://d3s-backend-dva9.onrender.com/api'; // For production
+ const API_BASE_URL = 'https://d3s-backend-hwbxccckgcdbdgfr.centralindia-01.azurewebsites.net/api'; // For production
 
 const axiosInstance = axios.create({
   baseURL: API_BASE_URL,

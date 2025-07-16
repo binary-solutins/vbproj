@@ -518,14 +518,14 @@ export default function PatientReports() {
     try {
       setPdfLoading(true);
       setPdfLoadError(null);
-
+  
       // If we already have this report loaded locally, use it
       if (report.localPath) {
         setLocalPdfPath(report.localPath);
         setSelectedReport(report);
         setIsPdfVisible(true);
         setPdfLoading(false);
-
+  
         Animated.timing(pdfSlideAnim, {
           toValue: 0,
           duration: 300,
@@ -533,14 +533,14 @@ export default function PatientReports() {
         }).start();
         return;
       }
-
+  
       // Download the PDF for viewing
       console.log('Downloading PDF for viewing:', report.id);
-
+  
       const {config, fs} = RNFetchBlob;
       const fileName = `report_${report.id}_${Date.now()}.pdf`;
       const filePath = `${fs.dirs.CacheDir}/${fileName}`;
-
+  
       // Check if file already exists in cache
       const fileExists = await fs.exists(filePath);
       if (fileExists) {
@@ -549,7 +549,7 @@ export default function PatientReports() {
         setSelectedReport(report);
         setIsPdfVisible(true);
         setPdfLoading(false);
-
+  
         Animated.timing(pdfSlideAnim, {
           toValue: 0,
           duration: 300,
@@ -557,30 +557,39 @@ export default function PatientReports() {
         }).start();
         return;
       }
-
+  
       console.log('Downloading PDF to cache:', filePath);
-
+  
+      // Fixed configuration for Azure Blob Storage
       const response = await config({
         fileCache: true,
-        trusty: true,
         path: filePath,
       }).fetch('GET', report.fileUrl, {
         'Cache-Control': 'no-store',
-        Authorization: await getAuthHeader(),
+        // Add Azure Blob Storage headers if needed (usually not required for public blobs)
+        // 'x-ms-blob-type': 'BlockBlob',
+        // Add authorization header if using private containers
+        // Authorization: await getAuthHeader(),
       });
-
+  
       console.log('PDF downloaded for viewing:', response.path());
-
+  
       // Verify file was downloaded
       const downloadedFileExists = await fs.exists(response.path());
       if (!downloadedFileExists) {
         throw new Error('Failed to download PDF file');
       }
-
+  
+      // Verify file has content
+      const stat = await fs.stat(response.path());
+      if (stat.size < 100) { // Check if file is too small (likely an error response)
+        throw new Error('Downloaded file appears to be invalid or corrupted');
+      }
+  
       setLocalPdfPath(response.path());
       setSelectedReport(report);
       setIsPdfVisible(true);
-
+  
       Animated.timing(pdfSlideAnim, {
         toValue: 0,
         duration: 300,
@@ -597,7 +606,6 @@ export default function PatientReports() {
       setPdfLoading(false);
     }
   };
-
   const closePdfViewer = () => {
     Animated.timing(pdfSlideAnim, {
       toValue: height,
