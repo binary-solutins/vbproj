@@ -413,7 +413,7 @@ export default function PatientReports() {
     try {
       setDownloadingId(report.id);
       console.log('Starting download for report:', report.id);
-  
+
       // Request permission for Android
       const hasPermission = await requestStoragePermission();
       if (!hasPermission) {
@@ -423,19 +423,19 @@ export default function PatientReports() {
         );
         return;
       }
-  
+
       const {config, fs} = RNFetchBlob;
       let downloadDir = fs.dirs.DownloadDir;
-  
+
       if (Platform.OS === 'ios') {
         downloadDir = fs.dirs.DocumentDir;
       }
-  
+
       const fileName = `report_${report.id}_${Date.now()}.pdf`;
       const filePath = `${downloadDir}/${fileName}`;
-  
+
       console.log('Downloading to:', filePath);
-  
+
       // Check if file already exists and create unique name if needed
       let finalFilePath = filePath;
       let counter = 1;
@@ -444,10 +444,10 @@ export default function PatientReports() {
         finalFilePath = `${downloadDir}/${nameWithoutExt}_${counter}.pdf`;
         counter++;
       }
-  
+
       // Updated download configuration with notification for Android
       const downloadConfig = {
-        fileCache: false,
+        fileCache: true,
         path: finalFilePath,
         // Add notification configuration for Android (without useDownloadManager to prevent crashes)
         ...(Platform.OS === 'android' && {
@@ -461,24 +461,24 @@ export default function PatientReports() {
           },
         }),
       };
-  
+
       const response = await config(downloadConfig).fetch(
         'GET',
         report.fileUrl,
         {
+          'X-Appwrite-Project': '681a94cb0031df448ed3',
           'Cache-Control': 'no-store',
-          Authorization: await getAuthHeader(),
         },
       );
-  
+
       console.log('Download completed:', response.path());
-  
+
       // Verify file was downloaded successfully
       const fileExists = await fs.exists(response.path());
       if (!fileExists) {
         throw new Error('File download failed - file not found after download');
       }
-  
+
       if (Platform.OS === 'ios') {
         // For iOS, open the document
         try {
@@ -494,13 +494,16 @@ export default function PatientReports() {
         // For Android, the notification will show automatically via download manager
         Alert.alert(
           'Download Successful!',
-          `Report downloaded successfully to Downloads folder\nFile: ${fileName.replace(`_${Date.now()}`, '')}`,
+          `Report downloaded successfully to Downloads folder\nFile: ${fileName.replace(
+            `_${Date.now()}`,
+            '',
+          )}`,
         );
       }
     } catch (error) {
       console.error('Error downloading report:', error);
       let errorMessage = 'Failed to download report. Please try again.';
-  
+
       if (error.message?.includes('Network')) {
         errorMessage = 'Network error. Please check your internet connection.';
       } else if (error.message?.includes('permission')) {
@@ -508,24 +511,25 @@ export default function PatientReports() {
       } else if (error.message?.includes('trust manager')) {
         errorMessage = 'Download configuration error. Please try again.';
       }
-  
+
       Alert.alert('Download Error', errorMessage);
     } finally {
       setDownloadingId(null);
     }
   };
+
   const handleViewPdf = async report => {
     try {
       setPdfLoading(true);
       setPdfLoadError(null);
-  
+
       // If we already have this report loaded locally, use it
       if (report.localPath) {
         setLocalPdfPath(report.localPath);
         setSelectedReport(report);
         setIsPdfVisible(true);
         setPdfLoading(false);
-  
+
         Animated.timing(pdfSlideAnim, {
           toValue: 0,
           duration: 300,
@@ -533,14 +537,14 @@ export default function PatientReports() {
         }).start();
         return;
       }
-  
+
       // Download the PDF for viewing
       console.log('Downloading PDF for viewing:', report.id);
-  
+
       const {config, fs} = RNFetchBlob;
       const fileName = `report_${report.id}_${Date.now()}.pdf`;
       const filePath = `${fs.dirs.CacheDir}/${fileName}`;
-  
+
       // Check if file already exists in cache
       const fileExists = await fs.exists(filePath);
       if (fileExists) {
@@ -549,7 +553,7 @@ export default function PatientReports() {
         setSelectedReport(report);
         setIsPdfVisible(true);
         setPdfLoading(false);
-  
+
         Animated.timing(pdfSlideAnim, {
           toValue: 0,
           duration: 300,
@@ -557,12 +561,12 @@ export default function PatientReports() {
         }).start();
         return;
       }
-  
+
       console.log('Downloading PDF to cache:', filePath);
-  
-      // Fixed configuration for Azure Blob Storage
+
       const response = await config({
         fileCache: true,
+        trusty: true,
         path: filePath,
       }).fetch('GET', report.fileUrl, {
         'Cache-Control': 'no-store',
@@ -571,25 +575,26 @@ export default function PatientReports() {
         // Add authorization header if using private containers
         // Authorization: await getAuthHeader(),
       });
-  
+
       console.log('PDF downloaded for viewing:', response.path());
-  
+
       // Verify file was downloaded
       const downloadedFileExists = await fs.exists(response.path());
       if (!downloadedFileExists) {
         throw new Error('Failed to download PDF file');
       }
-  
+
       // Verify file has content
       const stat = await fs.stat(response.path());
-      if (stat.size < 100) { // Check if file is too small (likely an error response)
+      if (stat.size < 100) {
+        // Check if file is too small (likely an error response)
         throw new Error('Downloaded file appears to be invalid or corrupted');
       }
-  
+
       setLocalPdfPath(response.path());
       setSelectedReport(report);
       setIsPdfVisible(true);
-  
+
       Animated.timing(pdfSlideAnim, {
         toValue: 0,
         duration: 300,
@@ -606,6 +611,7 @@ export default function PatientReports() {
       setPdfLoading(false);
     }
   };
+
   const closePdfViewer = () => {
     Animated.timing(pdfSlideAnim, {
       toValue: height,

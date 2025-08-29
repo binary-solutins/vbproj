@@ -1,5 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { useState, useRef, useEffect } from 'react';
+import React, {useState, useRef, useEffect, useCallback} from 'react';
 import {
   View,
   Text,
@@ -14,15 +13,14 @@ import {
   Platform,
   Alert,
 } from 'react-native';
-import { LineChart, BarChart, PieChart } from 'react-native-chart-kit';
+import {LineChart, BarChart, PieChart} from 'react-native-chart-kit';
 import Feather from 'react-native-vector-icons/Feather';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const { width, height } = Dimensions.get('window');
+const {width, height} = Dimensions.get('window');
 
-
-
-const API_BASE_URL = 'https://d3s-backend-hwbxccckgcdbdgfr.centralindia-01.azurewebsites.net/api';
-const HOSPITAL_ID = 5; 
+const API_BASE_URL =
+  'https://d3s-backend-hwbxccckgcdbdgfr.centralindia-01.azurewebsites.net/api';
 
 // Responsive dimensions
 const isTablet = width >= 768;
@@ -37,12 +35,12 @@ const responsiveSize = {
   statValue: isTablet ? 36 : isSmallScreen ? 28 : 32,
   statTitle: isTablet ? 18 : isSmallScreen ? 14 : 16,
   quickStatValue: isTablet ? 28 : isSmallScreen ? 20 : 24,
-  
+
   // Spacing
   containerPadding: isTablet ? 30 : isSmallScreen ? 15 : 20,
   cardPadding: isTablet ? 25 : isSmallScreen ? 15 : 20,
   marginBottom: isTablet ? 30 : isSmallScreen ? 15 : 20,
-  
+
   // Chart dimensions
   chartWidth: width - (isTablet ? 80 : isSmallScreen ? 40 : 60),
   chartHeight: isTablet ? 260 : isSmallScreen ? 180 : 220,
@@ -78,11 +76,15 @@ class DashboardAPI {
   }
 
   static async getPatientTrends(hospitalId, period = 'monthly') {
-    return this.request(`/analytics/${hospitalId}/patient-trends?period=${period}`);
+    return this.request(
+      `/analytics/${hospitalId}/patient-trends?period=${period}`,
+    );
   }
 
   static async getReportTrends(hospitalId, period = 'monthly') {
-    return this.request(`/analytics/${hospitalId}/report-trends?period=${period}`);  
+    return this.request(
+      `/analytics/${hospitalId}/report-trends?period=${period}`,
+    );
   }
 
   static async getDoctorAnalytics(hospitalId) {
@@ -94,7 +96,9 @@ class DashboardAPI {
   }
 
   static async getRecentActivities(hospitalId, limit = 10) {
-    return this.request(`/analytics/${hospitalId}/recent-activities?limit=${limit}`);
+    return this.request(
+      `/analytics/${hospitalId}/recent-activities?limit=${limit}`,
+    );
   }
 }
 
@@ -102,6 +106,7 @@ export default function Analytics() {
   const [selectedPeriod, setSelectedPeriod] = useState('monthly');
   const [loading, setLoading] = useState(true);
   const [selectedMetric, setSelectedMetric] = useState('patients');
+  const [hospitalId, setHospitalId] = useState(null);
   const [dashboardData, setDashboardData] = useState(null);
   const [patientTrends, setPatientTrends] = useState(null);
   const [reportTrends, setReportTrends] = useState(null);
@@ -117,28 +122,53 @@ export default function Analytics() {
   const cardAnimations = useRef([
     new Animated.Value(0),
     new Animated.Value(0),
-    new Animated.Value(0)
+    new Animated.Value(0),
   ]).current;
 
+  // Get hospital ID from local storage
+  const getHospitalId = async () => {
+    try {
+      const userData = JSON.parse(await AsyncStorage.getItem('userData'));
+      if (userData && userData.id) {
+        setHospitalId(userData.id);
+      } else {
+        Alert.alert(
+          'Error',
+          'Hospital information not found. Please log in again.',
+          [{text: 'OK'}],
+        );
+      }
+    } catch (error) {
+      console.error('Error getting hospital ID:', error);
+      Alert.alert(
+        'Error',
+        'Failed to load hospital information. Please log in again.',
+        [{text: 'OK'}],
+      );
+    }
+  };
+
   // Fetch all dashboard data
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
+    if (!hospitalId) return;
+
     try {
       setLoading(true);
-      
+
       const [
         dashboard,
         patientTrendsData,
         reportTrendsData,
         doctorData,
         quickStatsData,
-        activitiesData
+        activitiesData,
       ] = await Promise.all([
-        DashboardAPI.getDashboardData(HOSPITAL_ID),
-        DashboardAPI.getPatientTrends(HOSPITAL_ID, selectedPeriod),
-        DashboardAPI.getReportTrends(HOSPITAL_ID, selectedPeriod),
-        DashboardAPI.getDoctorAnalytics(HOSPITAL_ID),
-        DashboardAPI.getQuickStats(HOSPITAL_ID),
-        DashboardAPI.getRecentActivities(HOSPITAL_ID, 10)
+        DashboardAPI.getDashboardData(hospitalId),
+        DashboardAPI.getPatientTrends(hospitalId, selectedPeriod),
+        DashboardAPI.getReportTrends(hospitalId, selectedPeriod),
+        DashboardAPI.getDoctorAnalytics(hospitalId),
+        DashboardAPI.getQuickStats(hospitalId),
+        DashboardAPI.getRecentActivities(hospitalId, 10),
       ]);
 
       setDashboardData(dashboard);
@@ -147,24 +177,30 @@ export default function Analytics() {
       setDoctorAnalytics(doctorData);
       setQuickStats(quickStatsData);
       setRecentActivities(activitiesData.activities || []);
-      
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
       Alert.alert(
         'Error',
         'Failed to load dashboard data. Please check your internet connection and try again.',
-        [{ text: 'OK' }]
+        [{text: 'OK'}],
       );
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [hospitalId, selectedPeriod]);
 
-  // Refresh data when period changes
+  // Get hospital ID on component mount
   useEffect(() => {
-    fetchDashboardData();
-  }, [selectedPeriod]);
+    getHospitalId();
+  }, []);
+
+  // Refresh data when period changes or hospital ID is available
+  useEffect(() => {
+    if (hospitalId) {
+      fetchDashboardData();
+    }
+  }, [selectedPeriod, hospitalId, fetchDashboardData]);
 
   // Initial animations
   useEffect(() => {
@@ -185,7 +221,7 @@ export default function Analytics() {
           toValue: 1,
           duration: 1200,
           useNativeDriver: false,
-        })
+        }),
       ]).start();
 
       // Animate cards with delay
@@ -198,10 +234,17 @@ export default function Analytics() {
         }).start();
       });
     }
-  }, [loading, dashboardData]);
+  }, [
+    loading,
+    dashboardData,
+    fadeAnim,
+    slideUpAnim,
+    backgroundAnim,
+    cardAnimations,
+  ]);
 
   // Handle period change with loading state
-  const handlePeriodChange = async (period) => {
+  const handlePeriodChange = async period => {
     setSelectedPeriod(period);
     setRefreshing(true);
   };
@@ -209,9 +252,9 @@ export default function Analytics() {
   // Format chart data for trends
   const formatTrendData = (trends, type = 'count') => {
     if (!trends || !trends.trends || !Array.isArray(trends.trends)) {
-      return { labels: ['No Data'], datasets: [{ data: [0] }] };
+      return {labels: ['No Data'], datasets: [{data: [0]}]};
     }
-    
+
     const labels = trends.trends.map(item => {
       if (selectedPeriod === 'weekly') {
         return `W${item.period?.split('-')[1] || '1'}`;
@@ -221,34 +264,36 @@ export default function Analytics() {
         if (item.period && item.period.includes('-')) {
           const [year, month] = item.period.split('-');
           const dateObj = new Date(parseInt(year), parseInt(month) - 1);
-          return dateObj.toLocaleDateString('en-US', { month: 'short' });
+          return dateObj.toLocaleDateString('en-US', {month: 'short'});
         }
         return 'Unknown';
       }
     });
-    
+
     const data = trends.trends.map(item => {
       const value = item[type] || item.count || 0;
       const numValue = Number(value);
       return isNaN(numValue) ? 0 : numValue;
     });
-    
+
     return {
       labels: labels.length > 0 ? labels : ['No Data'],
-      datasets: [{
-        data: data.length > 0 ? data : [0],
-        color: () => getMetricColor(selectedMetric),
-        strokeWidth: 3
-      }]
+      datasets: [
+        {
+          data: data.length > 0 ? data : [0],
+          color: () => getMetricColor(selectedMetric),
+          strokeWidth: 3,
+        },
+      ],
     };
   };
 
   // Get metric color
-  const getMetricColor = (metric) => {
+  const getMetricColor = metric => {
     const colors = {
       patients: '#E91E63',
       doctors: '#2196F3',
-      reports: '#4CAF50'
+      reports: '#4CAF50',
     };
     return colors[metric] || '#E91E63';
   };
@@ -256,15 +301,22 @@ export default function Analytics() {
   // Format doctor specialization data for pie chart
   const formatDoctorSpecializationData = () => {
     if (!doctorAnalytics || !doctorAnalytics.specializationBreakdown) return [];
-    
-    const colors = ['#E91E63', '#2196F3', '#4CAF50', '#FF9800', '#9C27B0', '#607D8B'];
-    
+
+    const colors = [
+      '#E91E63',
+      '#2196F3',
+      '#4CAF50',
+      '#FF9800',
+      '#9C27B0',
+      '#607D8B',
+    ];
+
     return doctorAnalytics.specializationBreakdown.map((item, index) => ({
       name: item.specialization,
       population: item.count,
       color: colors[index % colors.length],
       legendFontColor: '#333',
-      legendFontSize: responsiveSize.chartSubtitle - 2
+      legendFontSize: responsiveSize.chartSubtitle - 2,
     }));
   };
 
@@ -273,31 +325,41 @@ export default function Analytics() {
     if (!reportTrends || !reportTrends.trends) {
       return {
         labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-        datasets: [{ data: [0, 0, 0, 0, 0, 0, 0], color: () => '#E91E63' }]
+        datasets: [{data: [0, 0, 0, 0, 0, 0, 0], color: () => '#E91E63'}],
       };
     }
-    
+
     // For demo purposes, create weekly data from monthly data
     const weekData = [45, 67, 89, 78, 92, 56, 34]; // Mock weekly data
-    
+
     return {
       labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-      datasets: [{ data: weekData, color: () => '#E91E63' }]
+      datasets: [{data: weekData, color: () => '#E91E63'}],
     };
   };
 
   const backgroundInterpolate = backgroundAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: ['#fce4ec', '#f8f9fa']
+    outputRange: ['#fce4ec', '#f8f9fa'],
   });
 
-  const StatCard = ({ title, value, subtitle, growth, icon, color, onPress, isSelected, index }) => {
+  const StatCard = ({
+    title,
+    value,
+    subtitle,
+    growth,
+    icon,
+    color,
+    onPress,
+    isSelected,
+    index,
+  }) => {
     // Helper function to safely format numbers
-    const formatNumber = (num) => {
+    const formatNumber = num => {
       // Ensure the value is a valid number
       const numValue = Number(num);
       if (isNaN(numValue)) return '0';
-      
+
       // Use a simple approach for number formatting to avoid locale issues
       if (numValue >= 1000000) {
         return (numValue / 1000000).toFixed(1) + 'M';
@@ -307,43 +369,52 @@ export default function Analytics() {
         return numValue.toString();
       }
     };
-  
+
     // Helper function to safely format growth percentage
-    const formatGrowth = (growthValue) => {
+    const formatGrowth = growthValue => {
       const numGrowth = Number(growthValue);
       if (isNaN(numGrowth)) return '0.0';
       return Math.abs(numGrowth).toFixed(1);
     };
-  
+
     return (
       <Animated.View
         style={[
           {
             opacity: cardAnimations[index],
-            transform: [{
-              translateY: cardAnimations[index].interpolate({
-                inputRange: [0, 1],
-                outputRange: [30, 0]
-              })
-            }]
-          }
-        ]}
-      >
+            transform: [
+              {
+                translateY: cardAnimations[index].interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [30, 0],
+                }),
+              },
+            ],
+          },
+        ]}>
         <TouchableOpacity
           style={[
             styles.statCard,
             isSelected && styles.statCardSelected,
-            { borderLeftColor: color }
+            {borderLeftColor: color},
           ]}
           onPress={onPress}
-          activeOpacity={0.8}
-        >
+          activeOpacity={0.8}>
           <View style={styles.statCardHeader}>
-            <View style={[styles.iconContainer, { backgroundColor: color + '15' }]}>
+            <View
+              style={[styles.iconContainer, {backgroundColor: color + '15'}]}>
               <Feather name={icon} size={isTablet ? 24 : 20} color={color} />
             </View>
-            <View style={[styles.growthIndicator, growth >= 0 ? styles.positiveGrowth : styles.negativeGrowth]}>
-              <Feather name={growth >= 0 ? 'trending-up' : 'trending-down'} size={isSmallScreen ? 10 : 12} color="#fff" />
+            <View
+              style={[
+                styles.growthIndicator,
+                growth >= 0 ? styles.positiveGrowth : styles.negativeGrowth,
+              ]}>
+              <Feather
+                name={growth >= 0 ? 'trending-up' : 'trending-down'}
+                size={isSmallScreen ? 10 : 12}
+                color="#fff"
+              />
               <Text style={styles.growthText}>{formatGrowth(growth)}%</Text>
             </View>
           </View>
@@ -354,24 +425,23 @@ export default function Analytics() {
       </Animated.View>
     );
   };
-  
 
   const PeriodSelector = () => (
     <View style={styles.periodSelector}>
-      {['weekly', 'monthly', 'yearly'].map((period) => (
+      {['weekly', 'monthly', 'yearly'].map(period => (
         <TouchableOpacity
           key={period}
           style={[
             styles.periodButton,
-            selectedPeriod === period && styles.periodButtonActive
+            selectedPeriod === period && styles.periodButtonActive,
           ]}
           onPress={() => handlePeriodChange(period)}
-          disabled={refreshing}
-        >
-          <Text style={[
-            styles.periodButtonText,
-            selectedPeriod === period && styles.periodButtonTextActive
-          ]}>
+          disabled={refreshing}>
+          <Text
+            style={[
+              styles.periodButtonText,
+              selectedPeriod === period && styles.periodButtonTextActive,
+            ]}>
             {period.charAt(0).toUpperCase() + period.slice(1)}
           </Text>
         </TouchableOpacity>
@@ -395,147 +465,167 @@ export default function Analytics() {
   const calculateGrowth = (current, previous) => {
     const currentNum = Number(current);
     const previousNum = Number(previous);
-    
+
     if (isNaN(currentNum) || isNaN(previousNum) || previousNum === 0) {
       return 0;
     }
-    
+
     return ((currentNum - previousNum) / previousNum) * 100;
   };
-  
 
-  const currentTrendData = selectedMetric === 'patients' ? patientTrends :
-                          selectedMetric === 'doctors' ? null : // Doctor trends not available in current API
-                          reportTrends;
+  const currentTrendData =
+    selectedMetric === 'patients'
+      ? patientTrends
+      : selectedMetric === 'doctors'
+      ? null // Doctor trends not available in current API
+      : reportTrends;
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <Animated.View 
-        style={[
-          styles.container, 
-          { backgroundColor: backgroundInterpolate }
-        ]}
-      >
-        <StatusBar 
-          barStyle="dark-content" 
-          backgroundColor="#f8f9fa" 
-          translucent={Platform.OS === 'android'} 
+      <Animated.View
+        style={[styles.container, {backgroundColor: backgroundInterpolate}]}>
+        <StatusBar
+          barStyle="dark-content"
+          backgroundColor="#f8f9fa"
+          translucent={Platform.OS === 'android'}
         />
-        
+
         {/* Enhanced Decorative Header */}
         <View style={styles.decorContainer}>
           <View style={styles.decorGradient} />
           {[...Array(8)].map((_, index) => (
-            <View 
+            <View
               key={index}
               style={[
-                styles.decorItem, 
+                styles.decorItem,
                 {
                   top: `${20 + Math.random() * 60}%`,
                   left: `${10 + Math.random() * 80}%`,
-                  backgroundColor: ['#E91E63', '#2196F3', '#4CAF50', '#FF9800'][index % 4] + '20',
+                  backgroundColor:
+                    ['#E91E63', '#2196F3', '#4CAF50', '#FF9800'][index % 4] +
+                    '20',
                   width: 8 + Math.random() * 12,
                   height: 8 + Math.random() * 12,
                   borderRadius: (8 + Math.random() * 12) / 2,
-                }
-              ]} 
+                },
+              ]}
             />
           ))}
         </View>
 
-        <ScrollView 
+        <ScrollView
           style={styles.scrollView}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
-       
-        >
+          contentContainerStyle={styles.scrollContent}>
           {/* Enhanced Header */}
-          <Animated.View 
+          <Animated.View
             style={[
               styles.header,
               {
                 opacity: fadeAnim,
-                transform: [{ translateY: slideUpAnim }]
-              }
-            ]}
-          >
+                transform: [{translateY: slideUpAnim}],
+              },
+            ]}>
             <Text style={styles.headerTitle}>Analytics Dashboard</Text>
-            <Text style={styles.headerSubtitle}>Breast Cancer Detection Insights</Text>
+            <Text style={styles.headerSubtitle}>
+              Breast Cancer Detection Insights
+            </Text>
             <View style={styles.headerDivider} />
           </Animated.View>
 
           {/* Period Selector */}
-          <Animated.View 
+          <Animated.View
             style={[
               styles.sectionContainer,
               {
                 opacity: fadeAnim,
-                transform: [{ translateY: slideUpAnim }]
-              }
-            ]}
-          >
+                transform: [{translateY: slideUpAnim}],
+              },
+            ]}>
             <PeriodSelector />
           </Animated.View>
 
           {/* Statistics Cards Grid */}
           <View style={styles.statsGrid}>
-  <StatCard
-    title="Patients Registered"
-    value={dashboardData?.overview?.totalPatients || 0}
-    subtitle={`+${dashboardData?.overview?.recentPatients || 0} this week`}
-    growth={quickStats?.thisMonth?.patients ? 
-      calculateGrowth(quickStats.thisMonth.patients, quickStats.thisWeek?.patients || 0) : 0}
-    icon="users"
-    color="#E91E63"
-    isSelected={selectedMetric === 'patients'}
-    onPress={() => setSelectedMetric('patients')}
-    index={0}
-  />
-  <StatCard
-    title="Medical Professionals"
-    value={dashboardData?.overview?.totalDoctors || 0}
-    subtitle={`+${doctorAnalytics?.recentDoctors || 0} this month`}
-    growth={doctorAnalytics?.recentDoctors ? 
-      calculateGrowth(doctorAnalytics.recentDoctors, 0) : 0}
-    icon="user-plus"
-    color="#2196F3"
-    isSelected={selectedMetric === 'doctors'}
-    onPress={() => setSelectedMetric('doctors')}
-    index={1}
-  />
-  <StatCard
-    title="Analysis Reports"
-    value={dashboardData?.overview?.totalReports || 0}
-    subtitle={`+${dashboardData?.overview?.recentReports || 0} this week`}
-    growth={quickStats?.thisMonth?.reports ? 
-      calculateGrowth(quickStats.thisMonth.reports, quickStats.thisWeek?.reports || 0) : 0}
-    icon="file-text"
-    color="#4CAF50"
-    isSelected={selectedMetric === 'reports'}
-    onPress={() => setSelectedMetric('reports')}
-    index={2}
-  />
-</View>
+            <StatCard
+              title="Patients Registered"
+              value={dashboardData?.overview?.totalPatients || 0}
+              subtitle={`+${
+                dashboardData?.overview?.recentPatients || 0
+              } this week`}
+              growth={
+                quickStats?.thisMonth?.patients
+                  ? calculateGrowth(
+                      quickStats.thisMonth.patients,
+                      quickStats.thisWeek?.patients || 0,
+                    )
+                  : 0
+              }
+              icon="users"
+              color="#E91E63"
+              isSelected={selectedMetric === 'patients'}
+              onPress={() => setSelectedMetric('patients')}
+              index={0}
+            />
+            <StatCard
+              title="Medical Professionals"
+              value={dashboardData?.overview?.totalDoctors || 0}
+              subtitle={`+${doctorAnalytics?.recentDoctors || 0} this month`}
+              growth={
+                doctorAnalytics?.recentDoctors
+                  ? calculateGrowth(doctorAnalytics.recentDoctors, 0)
+                  : 0
+              }
+              icon="user-plus"
+              color="#2196F3"
+              isSelected={selectedMetric === 'doctors'}
+              onPress={() => setSelectedMetric('doctors')}
+              index={1}
+            />
+            <StatCard
+              title="Analysis Reports"
+              value={dashboardData?.overview?.totalReports || 0}
+              subtitle={`+${
+                dashboardData?.overview?.recentReports || 0
+              } this week`}
+              growth={
+                quickStats?.thisMonth?.reports
+                  ? calculateGrowth(
+                      quickStats.thisMonth.reports,
+                      quickStats.thisWeek?.reports || 0,
+                    )
+                  : 0
+              }
+              icon="file-text"
+              color="#4CAF50"
+              isSelected={selectedMetric === 'reports'}
+              onPress={() => setSelectedMetric('reports')}
+              index={2}
+            />
+          </View>
 
           {/* Main Trend Chart */}
-          <Animated.View 
+          <Animated.View
             style={[
               styles.chartContainer,
               {
                 opacity: fadeAnim,
-                transform: [{ translateY: slideUpAnim }]
-              }
-            ]}
-          >
+                transform: [{translateY: slideUpAnim}],
+              },
+            ]}>
             <View style={styles.chartHeader}>
               <Text style={styles.chartTitle}>
-                {selectedMetric.charAt(0).toUpperCase() + selectedMetric.slice(1)} Growth Trend
+                {selectedMetric.charAt(0).toUpperCase() +
+                  selectedMetric.slice(1)}{' '}
+                Growth Trend
               </Text>
               <Text style={styles.chartSubtitle}>
-                {selectedPeriod.charAt(0).toUpperCase() + selectedPeriod.slice(1)} performance overview
+                {selectedPeriod.charAt(0).toUpperCase() +
+                  selectedPeriod.slice(1)}{' '}
+                performance overview
               </Text>
             </View>
-            
+
             {refreshing ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color="#E91E63" />
@@ -559,12 +649,12 @@ export default function Analytics() {
                   propsForDots: {
                     r: isSmallScreen ? '4' : '6',
                     strokeWidth: '2',
-                    stroke: getMetricColor(selectedMetric)
+                    stroke: getMetricColor(selectedMetric),
                   },
                   propsForBackgroundLines: {
                     strokeWidth: 1,
-                    stroke: '#f5f5f5'
-                  }
+                    stroke: '#f5f5f5',
+                  },
                 }}
                 bezier
                 style={styles.chart}
@@ -572,21 +662,21 @@ export default function Analytics() {
             )}
           </Animated.View>
 
-          {/* Department Distribution */}
-          <Animated.View 
+          <Animated.View
             style={[
               styles.chartContainer,
               {
                 opacity: fadeAnim,
-                transform: [{ translateY: slideUpAnim }]
-              }
-            ]}
-          >
+                transform: [{translateY: slideUpAnim}],
+              },
+            ]}>
             <View style={styles.chartHeader}>
               <Text style={styles.chartTitle}>Doctor Specialization</Text>
-              <Text style={styles.chartSubtitle}>Distribution across medical specializations</Text>
+              <Text style={styles.chartSubtitle}>
+                Distribution across medical specializations
+              </Text>
             </View>
-            
+
             {formatDoctorSpecializationData().length > 0 ? (
               <PieChart
                 data={formatDoctorSpecializationData()}
@@ -597,32 +687,34 @@ export default function Analytics() {
                 }}
                 accessor="population"
                 backgroundColor="transparent"
-                paddingLeft={isSmallScreen ? "10" : "15"}
+                paddingLeft={isSmallScreen ? '10' : '15'}
                 absolute
                 style={styles.chart}
               />
             ) : (
               <View style={styles.noDataContainer}>
-                <Text style={styles.noDataText}>No specialization data available</Text>
+                <Text style={styles.noDataText}>
+                  No specialization data available
+                </Text>
               </View>
             )}
           </Animated.View>
 
-          {/* Weekly Activity Chart */}
-          <Animated.View 
+          <Animated.View
             style={[
               styles.chartContainer,
               {
                 opacity: fadeAnim,
-                transform: [{ translateY: slideUpAnim }]
-              }
-            ]}
-          >
+                transform: [{translateY: slideUpAnim}],
+              },
+            ]}>
             <View style={styles.chartHeader}>
               <Text style={styles.chartTitle}>Weekly Activity Pattern</Text>
-              <Text style={styles.chartSubtitle}>Daily activity distribution</Text>
+              <Text style={styles.chartSubtitle}>
+                Daily activity distribution
+              </Text>
             </View>
-            
+
             <BarChart
               data={formatWeeklyReportData()}
               width={responsiveSize.chartWidth}
@@ -644,78 +736,42 @@ export default function Analytics() {
           </Animated.View>
 
           {/* Enhanced Quick Stats */}
-          <Animated.View 
+          <Animated.View
             style={[
               styles.quickStatsContainer,
               {
                 opacity: fadeAnim,
-                transform: [{ translateY: slideUpAnim }]
-              }
-            ]}
-          >
+                transform: [{translateY: slideUpAnim}],
+              },
+            ]}>
             <Text style={styles.quickStatsTitle}>Performance Metrics</Text>
             <View style={styles.quickStatsGrid}>
-              <View style={[styles.quickStat, { backgroundColor: '#E91E6308' }]}>
-                <Text style={[styles.quickStatValue, { color: '#E91E63' }]}>
+              <View style={[styles.quickStat, {backgroundColor: '#E91E6308'}]}>
+                <Text style={[styles.quickStatValue, {color: '#E91E63'}]}>
                   {quickStats?.today?.patients || 0}
                 </Text>
                 <Text style={styles.quickStatLabel}>Patients Today</Text>
               </View>
-              <View style={[styles.quickStat, { backgroundColor: '#2196F308' }]}>
-                <Text style={[styles.quickStatValue, { color: '#2196F3' }]}>
+              <View style={[styles.quickStat, {backgroundColor: '#2196F308'}]}>
+                <Text style={[styles.quickStatValue, {color: '#2196F3'}]}>
                   {quickStats?.thisWeek?.patients || 0}
                 </Text>
                 <Text style={styles.quickStatLabel}>Patients This Week</Text>
               </View>
-              <View style={[styles.quickStat, { backgroundColor: '#4CAF5008' }]}>
-                <Text style={[styles.quickStatValue, { color: '#4CAF50' }]}>
+              <View style={[styles.quickStat, {backgroundColor: '#4CAF5008'}]}>
+                <Text style={[styles.quickStatValue, {color: '#4CAF50'}]}>
                   {quickStats?.today?.reports || 0}
                 </Text>
                 <Text style={styles.quickStatLabel}>Reports Today</Text>
               </View>
-              <View style={[styles.quickStat, { backgroundColor: '#FF980008' }]}>
-                <Text style={[styles.quickStatValue, { color: '#FF9800' }]}>
+              <View style={[styles.quickStat, {backgroundColor: '#FF980008'}]}>
+                <Text style={[styles.quickStatValue, {color: '#FF9800'}]}>
                   {quickStats?.thisMonth?.reports || 0}
                 </Text>
                 <Text style={styles.quickStatLabel}>Reports This Month</Text>
               </View>
             </View>
           </Animated.View>
-
-          {/* Recent Activities */}
-          {recentActivities.length > 0 && (
-            <Animated.View 
-              style={[
-                styles.activitiesContainer,
-                {
-                  opacity: fadeAnim,
-                  transform: [{ translateY: slideUpAnim }]
-                }
-              ]}
-            >
-              <Text style={styles.activitiesTitle}>Recent Activities</Text>
-              {recentActivities.slice(0, 5).map((activity, index) => (
-                <View key={index} style={styles.activityItem}>
-                  <View style={[
-                    styles.activityIcon,
-                    { backgroundColor: activity.type === 'patient_registered' ? '#E91E6315' : '#4CAF5015' }
-                  ]}>
-                    <Feather 
-                      name={activity.type === 'patient_registered' ? 'user-plus' : 'file-text'} 
-                      size={16} 
-                      color={activity.type === 'patient_registered' ? '#E91E63' : '#4CAF50'} 
-                    />
-                  </View>
-                  <View style={styles.activityContent}>
-                    <Text style={styles.activityMessage}>{activity.message}</Text>
-                    <Text style={styles.activityTime}>
-                      {new Date(activity.timestamp).toLocaleDateString()}
-                    </Text>
-                  </View>
-                </View>
-              ))}
-            </Animated.View>
-          )}
         </ScrollView>
       </Animated.View>
     </SafeAreaView>
@@ -808,7 +864,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 6,
     shadowColor: '#E91E63',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: {width: 0, height: 4},
     shadowOpacity: 0.08,
     shadowRadius: 12,
     elevation: 4,
@@ -822,7 +878,7 @@ const styles = StyleSheet.create({
   periodButtonActive: {
     backgroundColor: '#E91E63',
     shadowColor: '#E91E63',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 3,
@@ -846,7 +902,7 @@ const styles = StyleSheet.create({
     padding: responsiveSize.cardPadding,
     borderLeftWidth: 5,
     shadowColor: '#E91E63',
-    shadowOffset: { width: 0, height: 6 },
+    shadowOffset: {width: 0, height: 6},
     shadowOpacity: 0.1,
     shadowRadius: 15,
     elevation: 6,
@@ -855,7 +911,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fef7f0',
     shadowOpacity: 0.15,
     elevation: 8,
-    transform: [{ scale: 1.02 }],
+    transform: [{scale: 1.02}],
   },
   statCardHeader: {
     flexDirection: 'row',
@@ -913,7 +969,7 @@ const styles = StyleSheet.create({
     padding: responsiveSize.cardPadding,
     marginBottom: responsiveSize.marginBottom,
     shadowColor: '#E91E63',
-    shadowOffset: { width: 0, height: 6 },
+    shadowOffset: {width: 0, height: 6},
     shadowOpacity: 0.1,
     shadowRadius: 15,
     elevation: 6,
@@ -953,7 +1009,7 @@ const styles = StyleSheet.create({
     padding: responsiveSize.cardPadding,
     marginBottom: responsiveSize.marginBottom,
     shadowColor: '#E91E63',
-    shadowOffset: { width: 0, height: 6 },
+    shadowOffset: {width: 0, height: 6},
     shadowOpacity: 0.1,
     shadowRadius: 15,
     elevation: 6,
