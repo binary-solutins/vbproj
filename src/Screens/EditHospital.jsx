@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, {useState, useEffect, useRef, useMemo, useCallback} from 'react';
 import {
   View,
   Text,
@@ -16,14 +16,22 @@ import {
   Animated,
   SafeAreaView,
   Modal,
-  FlatList
+  FlatList,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { Camera, ChevronLeft, ChevronDown, Upload, X, Search } from 'lucide-react-native';
+import {useNavigation} from '@react-navigation/native';
+import {
+  Camera,
+  ChevronLeft,
+  ChevronDown,
+  Upload,
+  X,
+  Search,
+} from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { authAPI } from '../api/axios';
+import {launchImageLibrary} from 'react-native-image-picker';
+import {authAPI} from '../api/axios';
 
-const { width, height } = Dimensions.get('window');
+const {width, height} = Dimensions.get('window');
 
 // Debounce hook for search optimization
 const useDebounce = (value, delay) => {
@@ -43,219 +51,216 @@ const useDebounce = (value, delay) => {
 };
 
 // Memoized search input component
-const SearchInput = React.memo(({ value, onChangeText, placeholder, onClear }) => (
-  <View style={styles.searchContainer}>
-    <View style={styles.searchInputContainer}>
-      <Search size={18} color="#b99aa8" style={styles.searchIcon} />
-      <TextInput
-        style={styles.searchInput}
-        placeholder={placeholder}
-        placeholderTextColor="#b99aa8"
-        value={value}
-        onChangeText={onChangeText}
-        autoCapitalize="none"
-        autoCorrect={false}
-        returnKeyType="search"
-        blurOnSubmit={false}
-      />
-      {value.length > 0 && (
-        <TouchableOpacity
-          onPress={onClear}
-          style={styles.clearSearchButton}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <X size={16} color="#b99aa8" />
-        </TouchableOpacity>
-      )}
+const SearchInput = React.memo(
+  ({value, onChangeText, placeholder, onClear}) => (
+    <View style={styles.searchContainer}>
+      <View style={styles.searchInputContainer}>
+        <Search size={18} color="#b99aa8" style={styles.searchIcon} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder={placeholder}
+          placeholderTextColor="#b99aa8"
+          value={value}
+          onChangeText={onChangeText}
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType="search"
+          blurOnSubmit={false}
+        />
+        {value.length > 0 && (
+          <TouchableOpacity
+            onPress={onClear}
+            style={styles.clearSearchButton}
+            hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
+            <X size={16} color="#b99aa8" />
+          </TouchableOpacity>
+        )}
+      </View>
     </View>
-  </View>
-));
+  ),
+);
 
 // Memoized list item component
-const LocationItem = React.memo(({ item, onPress }) => (
+const LocationItem = React.memo(({item, onPress}) => (
   <TouchableOpacity
     style={styles.modalItem}
     onPress={() => onPress(item)}
-    activeOpacity={0.7}
-  >
+    activeOpacity={0.7}>
     <Text style={styles.modalItemText}>{item.name}</Text>
   </TouchableOpacity>
 ));
 
 // Memoized empty component
-const EmptyComponent = React.memo(({ title }) => (
+const EmptyComponent = React.memo(({title}) => (
   <View style={styles.noResultsContainer}>
     <Search size={48} color="#d1d5db" />
-    <Text style={styles.noResultsText}>
-      No {title.toLowerCase()} found
-    </Text>
-    <Text style={styles.noResultsSubtext}>
-      Try adjusting your search terms
-    </Text>
+    <Text style={styles.noResultsText}>No {title.toLowerCase()} found</Text>
+    <Text style={styles.noResultsSubtext}>Try adjusting your search terms</Text>
   </View>
 ));
 
 // Optimized Location Modal Component
-const LocationModal = React.memo(({ 
-  visible, 
-  onClose, 
-  title, 
-  data,
-  onSelect,
-  searchType
-}) => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const debouncedSearchQuery = useDebounce(searchQuery, 300);
-  
-  const modalFadeAnim = useRef(new Animated.Value(0)).current;
-  const modalSlideAnim = useRef(new Animated.Value(300)).current;
+const LocationModal = React.memo(
+  ({visible, onClose, title, data, onSelect, searchType}) => {
+    const [searchQuery, setSearchQuery] = useState('');
+    const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
-  // Filtered data with debounced search
-  const filteredData = useMemo(() => {
-    if (!debouncedSearchQuery.trim()) return data;
-    const lowercaseQuery = debouncedSearchQuery.toLowerCase();
-    return data.filter(item => 
-      item.name.toLowerCase().includes(lowercaseQuery)
+    const modalFadeAnim = useRef(new Animated.Value(0)).current;
+    const modalSlideAnim = useRef(new Animated.Value(300)).current;
+
+    // Filtered data with debounced search
+    const filteredData = useMemo(() => {
+      if (!debouncedSearchQuery.trim()) return data;
+      const lowercaseQuery = debouncedSearchQuery.toLowerCase();
+      return data.filter(item =>
+        item.name.toLowerCase().includes(lowercaseQuery),
+      );
+    }, [data, debouncedSearchQuery]);
+
+    // Animation handlers
+    const showModal = useCallback(() => {
+      modalFadeAnim.setValue(0);
+      modalSlideAnim.setValue(300);
+
+      Animated.parallel([
+        Animated.timing(modalFadeAnim, {
+          toValue: 1,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+        Animated.timing(modalSlideAnim, {
+          toValue: 0,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }, [modalFadeAnim, modalSlideAnim]);
+
+    const hideModal = useCallback(
+      callback => {
+        Animated.parallel([
+          Animated.timing(modalFadeAnim, {
+            toValue: 0,
+            duration: 200,
+            useNativeDriver: true,
+          }),
+          Animated.timing(modalSlideAnim, {
+            toValue: 300,
+            duration: 200,
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
+          setSearchQuery('');
+          callback?.();
+        });
+      },
+      [modalFadeAnim, modalSlideAnim],
     );
-  }, [data, debouncedSearchQuery]);
 
-  // Animation handlers
-  const showModal = useCallback(() => {
-    modalFadeAnim.setValue(0);
-    modalSlideAnim.setValue(300);
-    
-    Animated.parallel([
-      Animated.timing(modalFadeAnim, {
-        toValue: 1,
-        duration: 250,
-        useNativeDriver: true,
-      }),
-      Animated.timing(modalSlideAnim, {
-        toValue: 0,
-        duration: 250,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [modalFadeAnim, modalSlideAnim]);
+    // Handle modal visibility
+    useEffect(() => {
+      if (visible) {
+        showModal();
+      }
+    }, [visible, showModal]);
 
-  const hideModal = useCallback((callback) => {
-    Animated.parallel([
-      Animated.timing(modalFadeAnim, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-      Animated.timing(modalSlideAnim, {
-        toValue: 300,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
+    // Handlers
+    const handleClose = useCallback(() => {
+      hideModal(onClose);
+    }, [hideModal, onClose]);
+
+    const handleItemPress = useCallback(
+      item => {
+        onSelect(item);
+        hideModal(onClose);
+      },
+      [onSelect, hideModal, onClose],
+    );
+
+    const clearSearch = useCallback(() => {
       setSearchQuery('');
-      callback?.();
-    });
-  }, [modalFadeAnim, modalSlideAnim]);
+    }, []);
 
-  // Handle modal visibility
-  useEffect(() => {
-    if (visible) {
-      showModal();
-    }
-  }, [visible, showModal]);
+    // FlatList optimization
+    const keyExtractor = useCallback(item => item.id.toString(), []);
 
-  // Handlers
-  const handleClose = useCallback(() => {
-    hideModal(onClose);
-  }, [hideModal, onClose]);
+    const renderItem = useCallback(
+      ({item}) => <LocationItem item={item} onPress={handleItemPress} />,
+      [handleItemPress],
+    );
 
-  const handleItemPress = useCallback((item) => {
-    onSelect(item);
-    hideModal(onClose);
-  }, [onSelect, hideModal, onClose]);
+    const getItemLayout = useCallback(
+      (data, index) => ({
+        length: 50,
+        offset: 50 * index,
+        index,
+      }),
+      [],
+    );
 
-  const clearSearch = useCallback(() => {
-    setSearchQuery('');
-  }, []);
+    const renderEmptyComponent = useCallback(
+      () => <EmptyComponent title={title} />,
+      [title],
+    );
 
-  // FlatList optimization
-  const keyExtractor = useCallback((item) => item.id.toString(), []);
-  
-  const renderItem = useCallback(({ item }) => (
-    <LocationItem item={item} onPress={handleItemPress} />
-  ), [handleItemPress]);
+    if (!visible) return null;
 
-  const getItemLayout = useCallback((data, index) => ({
-    length: 50,
-    offset: 50 * index,
-    index,
-  }), []);
-
-  const renderEmptyComponent = useCallback(() => (
-    <EmptyComponent title={title} />
-  ), [title]);
-
-  if (!visible) return null;
-
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="none"
-      onRequestClose={handleClose}
-      statusBarTranslucent
-    >
-      <Animated.View 
-        style={[
-          styles.modalOverlay,
-          { opacity: modalFadeAnim }
-        ]}
-      >
-        <TouchableOpacity 
-          style={styles.modalBackdrop} 
-          activeOpacity={1} 
-          onPress={handleClose}
-        />
-        
-        <Animated.View 
-          style={[
-            styles.modalContent,
-            { transform: [{ translateY: modalSlideAnim }] }
-          ]}
-        >
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>{title}</Text>
-            <TouchableOpacity onPress={handleClose} style={styles.modalCloseButton}>
-              <X size={22} color="#666" />
-            </TouchableOpacity>
-          </View>
-          
-          <SearchInput
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholder={`Search ${title.toLowerCase()}...`}
-            onClear={clearSearch}
+    return (
+      <Modal
+        visible={visible}
+        transparent
+        animationType="none"
+        onRequestClose={handleClose}
+        statusBarTranslucent>
+        <Animated.View style={[styles.modalOverlay, {opacity: modalFadeAnim}]}>
+          <TouchableOpacity
+            style={styles.modalBackdrop}
+            activeOpacity={1}
+            onPress={handleClose}
           />
 
-          <FlatList
-            data={filteredData}
-            keyExtractor={keyExtractor}
-            renderItem={renderItem}
-            style={styles.modalList}
-            contentContainerStyle={styles.modalListContent}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            removeClippedSubviews={true}
-            maxToRenderPerBatch={15}
-            windowSize={10}
-            initialNumToRender={10}
-            getItemLayout={getItemLayout}
-            ListEmptyComponent={renderEmptyComponent}
-          />
+          <Animated.View
+            style={[
+              styles.modalContent,
+              {transform: [{translateY: modalSlideAnim}]},
+            ]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{title}</Text>
+              <TouchableOpacity
+                onPress={handleClose}
+                style={styles.modalCloseButton}>
+                <X size={22} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            <SearchInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder={`Search ${title.toLowerCase()}...`}
+              onClear={clearSearch}
+            />
+
+            <FlatList
+              data={filteredData}
+              keyExtractor={keyExtractor}
+              renderItem={renderItem}
+              style={styles.modalList}
+              contentContainerStyle={styles.modalListContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              removeClippedSubviews={true}
+              maxToRenderPerBatch={15}
+              windowSize={10}
+              initialNumToRender={10}
+              getItemLayout={getItemLayout}
+              ListEmptyComponent={renderEmptyComponent}
+            />
+          </Animated.View>
         </Animated.View>
-      </Animated.View>
-    </Modal>
-  );
-});
+      </Modal>
+    );
+  },
+);
 
 export default function EditHospital() {
   const navigation = useNavigation();
@@ -303,7 +308,7 @@ export default function EditHospital() {
 
     loadHospitalData();
     fetchCountries();
-  }, []);
+  }, [loadHospitalData, fetchCountries, fadeAnim, slideUpAnim, backgroundAnim]);
 
   // Location effects
   useEffect(() => {
@@ -316,7 +321,7 @@ export default function EditHospital() {
       setSelectedState(null);
       setSelectedCity(null);
     }
-  }, [selectedCountry]);
+  }, [selectedCountry, fetchStates]);
 
   useEffect(() => {
     if (selectedState?.id) {
@@ -326,22 +331,21 @@ export default function EditHospital() {
       setCities([]);
       setSelectedCity(null);
     }
-  }, [selectedState]);
+  }, [selectedState, fetchCities]);
 
   const backgroundInterpolate = backgroundAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: ['#ffe6f0', '#fff0f5']
+    outputRange: ['#ffe6f0', '#fff0f5'],
   });
 
-  // Your original API functions - keeping them exactly as they were
-  const loadHospitalData = async () => {
+  const loadHospitalData = useCallback(async () => {
     try {
       setLoading(true);
       const userDataString = await AsyncStorage.getItem('userData');
       if (userDataString) {
         const userData = JSON.parse(userDataString);
         setHospitalData(userData);
-        
+
         // Set initial location selections if data exists
         if (userData.country) {
           const country = countries.find(c => c.name === userData.country);
@@ -356,9 +360,9 @@ export default function EditHospital() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [countries]);
 
-  const fetchCountries = async () => {
+  const fetchCountries = useCallback(async () => {
     try {
       const response = await authAPI.get('/countries');
       if (response.data?.data) {
@@ -368,9 +372,9 @@ export default function EditHospital() {
       console.error('Error fetching countries:', error);
       showAlert('Error', 'Failed to load countries');
     }
-  };
+  }, []);
 
-  const fetchStates = async (countryId) => {
+  const fetchStates = useCallback(async countryId => {
     try {
       const response = await authAPI.get(`/countries/${countryId}/states`);
       if (response.data?.data) {
@@ -380,9 +384,9 @@ export default function EditHospital() {
       console.error('Error fetching states:', error);
       showAlert('Error', 'Failed to load states');
     }
-  };
+  }, []);
 
-  const fetchCities = async (stateId) => {
+  const fetchCities = useCallback(async stateId => {
     try {
       const response = await authAPI.get(`/states/${stateId}/cities`);
       if (response.data?.data) {
@@ -392,23 +396,23 @@ export default function EditHospital() {
       console.error('Error fetching cities:', error);
       showAlert('Error', 'Failed to load cities');
     }
-  };
+  }, []);
 
   const handleImagePick = async () => {
     if (!isEditing) return;
-    
+
     // For web compatibility, you might want to implement a file input
     if (Platform.OS === 'web') {
       // Web file input implementation
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = 'image/*';
-      input.onchange = (e) => {
+      input.onchange = e => {
         const file = e.target.files[0];
         if (file) {
           const reader = new FileReader();
-          reader.onload = (event) => {
-            setNewImage({ uri: event.target.result });
+          reader.onload = event => {
+            setNewImage({uri: event.target.result});
           };
           reader.readAsDataURL(file);
         }
@@ -435,7 +439,7 @@ export default function EditHospital() {
   };
 
   const showAlert = (title, message) => {
-    Alert.alert(title, message, [{ text: 'OK', style: 'default' }]);
+    Alert.alert(title, message, [{text: 'OK', style: 'default'}]);
   };
 
   const handleSave = async () => {
@@ -445,7 +449,7 @@ export default function EditHospital() {
       setSaving(true);
 
       const formData = new FormData();
-      
+
       // Add basic hospital data
       formData.append('name', hospitalData.name);
       formData.append('email', hospitalData.email);
@@ -457,28 +461,32 @@ export default function EditHospital() {
       if (selectedState) formData.append('state', selectedState.name);
       if (selectedCity) formData.append('city', selectedCity.name);
 
+      console.log('newImage ==========> ', newImage);
+
       // Add image if changed
       if (newImage) {
-        const imageUri = newImage.uri;
-        const filename = imageUri.split('/').pop();
-        const match = /\.(\w+)$/.exec(filename || '');
-        const type = match ? `image/${match[1]}` : 'image/jpeg';
-
         formData.append('image', {
-          uri: imageUri,
-          name: filename,
-          type,
+          uri: newImage.uri,
+          name: newImage.name || 'image.jpg',
+          type: newImage.type || 'image/jpeg',
         });
       }
 
-      const response = await authAPI.put(`/hospitals/${hospitalData.id}`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
+      const response = await authAPI.put(
+        `/hospitals/${hospitalData.id}`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
         },
-      });
+      );
 
       if (response.data) {
-        await AsyncStorage.setItem('userData', JSON.stringify(response.data.hospital));
+        await AsyncStorage.setItem(
+          'userData',
+          JSON.stringify(response.data.hospital),
+        );
         showAlert('Success', 'Hospital details updated successfully');
         setIsEditing(false);
         loadHospitalData();
@@ -491,10 +499,10 @@ export default function EditHospital() {
     }
   };
 
-  const getInputStyle = (fieldName) => [
+  const getInputStyle = fieldName => [
     styles.inputContainer,
     inputFocused === fieldName && styles.inputFocused,
-    !isEditing && styles.disabledInput
+    !isEditing && styles.disabledInput,
   ];
 
   // Modal handlers
@@ -510,18 +518,18 @@ export default function EditHospital() {
   const closeCityModal = useCallback(() => setShowCityModal(false), []);
 
   // Selection handlers
-  const handleCountrySelect = useCallback((country) => {
+  const handleCountrySelect = useCallback(country => {
     setSelectedCountry(country);
     setSelectedState(null);
     setSelectedCity(null);
   }, []);
 
-  const handleStateSelect = useCallback((state) => {
+  const handleStateSelect = useCallback(state => {
     setSelectedState(state);
     setSelectedCity(null);
   }, []);
 
-  const handleCitySelect = useCallback((city) => {
+  const handleCitySelect = useCallback(city => {
     setSelectedCity(city);
   }, []);
 
@@ -536,14 +544,10 @@ export default function EditHospital() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <Animated.View 
-        style={[
-          styles.container, 
-          { backgroundColor: backgroundInterpolate }
-        ]}
-      >
+      <Animated.View
+        style={[styles.container, {backgroundColor: backgroundInterpolate}]}>
         <StatusBar barStyle="light-content" backgroundColor="#ff4a93" />
-        
+
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
@@ -553,23 +557,22 @@ export default function EditHospital() {
                   'Discard Changes',
                   'Are you sure you want to discard your changes?',
                   [
-                    { text: 'Cancel', style: 'cancel' },
-                    { 
+                    {text: 'Cancel', style: 'cancel'},
+                    {
                       text: 'Discard',
                       style: 'destructive',
                       onPress: () => {
                         setIsEditing(false);
                         loadHospitalData();
                         navigation.goBack();
-                      }
+                      },
                     },
-                  ]
+                  ],
                 );
               } else {
                 navigation.goBack();
               }
-            }}
-          >
+            }}>
             <ChevronLeft size={26} color="#fff" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Hospital Details</Text>
@@ -582,8 +585,7 @@ export default function EditHospital() {
                 setIsEditing(true);
               }
             }}
-            disabled={saving}
-          >
+            disabled={saving}>
             {saving ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
@@ -603,38 +605,34 @@ export default function EditHospital() {
           <View style={[styles.decorItem, styles.decorPlus]} />
         </View>
 
-        <KeyboardAvoidingView 
+        <KeyboardAvoidingView
           style={styles.keyboardAvoid}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-          <ScrollView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <ScrollView
             style={styles.content}
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.scrollContent}
-          >
-            <Animated.View 
+            contentContainerStyle={styles.scrollContent}>
+            <Animated.View
               style={[
                 styles.cardContainer,
                 {
                   opacity: fadeAnim,
-                  transform: [{ translateY: slideUpAnim }]
-                }
-              ]}
-            >
+                  transform: [{translateY: slideUpAnim}],
+                },
+              ]}>
               <View style={styles.imageSection}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.imageContainer}
                   onPress={handleImagePick}
-                  disabled={!isEditing}
-                >
+                  disabled={!isEditing}>
                   {newImage ? (
                     <Image
-                      source={{ uri: newImage.uri }}
+                      source={{uri: newImage.uri}}
                       style={styles.profileImage}
                     />
                   ) : hospitalData.imageUrl ? (
                     <Image
-                      source={{ uri: hospitalData.imageUrl }}
+                      source={{uri: hospitalData.imageUrl}}
                       style={styles.profileImage}
                     />
                   ) : (
@@ -658,7 +656,9 @@ export default function EditHospital() {
                     <TextInput
                       style={styles.input}
                       value={hospitalData.name || ''}
-                      onChangeText={(text) => setHospitalData({ ...hospitalData, name: text })}
+                      onChangeText={text =>
+                        setHospitalData({...hospitalData, name: text})
+                      }
                       editable={isEditing}
                       placeholder="Enter hospital name"
                       placeholderTextColor="#b99aa8"
@@ -674,7 +674,9 @@ export default function EditHospital() {
                     <TextInput
                       style={styles.input}
                       value={hospitalData.email || ''}
-                      onChangeText={(text) => setHospitalData({ ...hospitalData, email: text })}
+                      onChangeText={text =>
+                        setHospitalData({...hospitalData, email: text})
+                      }
                       editable={isEditing}
                       keyboardType="email-address"
                       autoCapitalize="none"
@@ -692,7 +694,9 @@ export default function EditHospital() {
                     <TextInput
                       style={styles.input}
                       value={hospitalData.phone || ''}
-                      onChangeText={(text) => setHospitalData({ ...hospitalData, phone: text })}
+                      onChangeText={text =>
+                        setHospitalData({...hospitalData, phone: text})
+                      }
                       editable={isEditing}
                       keyboardType="phone-pad"
                       placeholder="Enter phone number"
@@ -706,17 +710,14 @@ export default function EditHospital() {
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Country</Text>
                   <TouchableOpacity
-                    style={[
-                      getInputStyle('country'),
-                      styles.dropdownInput,
-                    ]}
+                    style={[getInputStyle('country'), styles.dropdownInput]}
                     onPress={openCountryModal}
-                    disabled={!isEditing}
-                  >
-                    <Text style={[
-                      styles.dropdownText,
-                      !selectedCountry && styles.placeholderText
-                    ]}>
+                    disabled={!isEditing}>
+                    <Text
+                      style={[
+                        styles.dropdownText,
+                        !selectedCountry && styles.placeholderText,
+                      ]}>
                       {selectedCountry?.name || 'Select Country'}
                     </Text>
                     <ChevronDown size={20} color="#b99aa8" />
@@ -729,15 +730,16 @@ export default function EditHospital() {
                     style={[
                       getInputStyle('state'),
                       styles.dropdownInput,
-                      (!selectedCountry || !isEditing) && styles.disabledDropdown
+                      (!selectedCountry || !isEditing) &&
+                        styles.disabledDropdown,
                     ]}
                     onPress={openStateModal}
-                    disabled={!isEditing || !selectedCountry}
-                  >
-                    <Text style={[
-                      styles.dropdownText,
-                      !selectedState && styles.placeholderText
-                    ]}>
+                    disabled={!isEditing || !selectedCountry}>
+                    <Text
+                      style={[
+                        styles.dropdownText,
+                        !selectedState && styles.placeholderText,
+                      ]}>
                       {selectedState?.name || 'Select State'}
                     </Text>
                     <ChevronDown size={20} color="#b99aa8" />
@@ -750,15 +752,15 @@ export default function EditHospital() {
                     style={[
                       getInputStyle('city'),
                       styles.dropdownInput,
-                      (!selectedState || !isEditing) && styles.disabledDropdown
+                      (!selectedState || !isEditing) && styles.disabledDropdown,
                     ]}
                     onPress={openCityModal}
-                    disabled={!isEditing || !selectedState}
-                  >
-                    <Text style={[
-                      styles.dropdownText,
-                      !selectedCity && styles.placeholderText
-                    ]}>
+                    disabled={!isEditing || !selectedState}>
+                    <Text
+                      style={[
+                        styles.dropdownText,
+                        !selectedCity && styles.placeholderText,
+                      ]}>
                       {selectedCity?.name || 'Select City'}
                     </Text>
                     <ChevronDown size={20} color="#b99aa8" />
@@ -767,11 +769,17 @@ export default function EditHospital() {
 
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Address</Text>
-                  <View style={[getInputStyle('address'), styles.textAreaContainer]}>
+                  <View
+                    style={[
+                      getInputStyle('address'),
+                      styles.textAreaContainer,
+                    ]}>
                     <TextInput
                       style={[styles.input, styles.textArea]}
                       value={hospitalData.address || ''}
-                      onChangeText={(text) => setHospitalData({ ...hospitalData, address: text })}
+                      onChangeText={text =>
+                        setHospitalData({...hospitalData, address: text})
+                      }
                       editable={isEditing}
                       multiline
                       numberOfLines={3}
@@ -851,7 +859,7 @@ const styles = StyleSheet.create({
     minHeight: Platform.OS === 'android' ? 80 : 60,
     elevation: 4,
     shadowColor: '#e05c97',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: {width: 0, height: 4},
     shadowOpacity: 0.25,
     shadowRadius: 8,
   },
@@ -904,7 +912,7 @@ const styles = StyleSheet.create({
     height: 20,
     backgroundColor: '#ff7eb9',
     borderRadius: 10,
-    transform: [{ rotate: '45deg' }],
+    transform: [{rotate: '45deg'}],
     top: '20%',
     left: '30%',
   },
@@ -967,7 +975,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 20,
     shadowColor: '#e05c97',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: {width: 0, height: 4},
     shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 5,
@@ -1045,7 +1053,7 @@ const styles = StyleSheet.create({
     borderColor: '#ff4a93',
     backgroundColor: '#fffbfd',
     shadowColor: '#ff4a93',
-    shadowOffset: { width: 0, height: 0 },
+    shadowOffset: {width: 0, height: 0},
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 1,
@@ -1093,7 +1101,7 @@ const styles = StyleSheet.create({
     maxHeight: '80%',
     paddingBottom: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
+    shadowOffset: {width: 0, height: -4},
     shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 10,
@@ -1143,7 +1151,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 12,
     height: 44,
-    marginTop:10,
+    marginTop: 10,
     borderWidth: 1,
     borderColor: '#f2d1e0',
   },
